@@ -37,7 +37,7 @@ irm https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/
 **macOS, Linux and Termux**:
 
 ```bash
-curl -fsSL https://taranidhran1206-a11y.github.io/unknown-project/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.sh | sh
 ```
 
 That's it. The installer:
@@ -49,7 +49,7 @@ That's it. The installer:
 Run the same command again to **update**. To **uninstall**, run it with `ARA_UNINSTALL=1`:
 
 ```bash
-curl -fsSL https://taranidhran1206-a11y.github.io/unknown-project/install.sh | ARA_UNINSTALL=1 sh
+curl -fsSL https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.sh | ARA_UNINSTALL=1 sh
 ```
 ```powershell
 $env:ARA_UNINSTALL=1; irm https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.ps1 | iex

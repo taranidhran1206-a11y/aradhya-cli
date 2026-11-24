@@ -1,7 +1,7 @@
 #!/bin/sh
 # Aradhya Code installer for Linux, macOS and Termux (Android).
 #
-#   curl -fsSL https://taranidhran1206-a11y.github.io/unknown-project/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.sh | sh
 #
 # Installs into its own folder (~/.aradhya/venv), so it never touches your system Python,
 # and puts the `ara` command on your PATH. Run it again any time to update.

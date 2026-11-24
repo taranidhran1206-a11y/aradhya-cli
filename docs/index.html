@@ -291,9 +291,9 @@
   const CMDS = {
     win: { text: "irm https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.ps1 | iex",
            prompt: "PS>", note: "Paste into PowerShell or Windows Terminal. Python is installed for you if it's missing." },
-    nix: { text: "curl -fsSL https://taranidhran1206-a11y.github.io/unknown-project/install.sh | sh",
+    nix: { text: "curl -fsSL https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.sh | sh",
            prompt: "$", note: "Needs Python 3.9 or newer. On Ubuntu or Debian you may need python3-venv first." },
-    termux: { text: "curl -fsSL https://taranidhran1206-a11y.github.io/unknown-project/install.sh | sh",
+    termux: { text: "curl -fsSL https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.sh | sh",
               prompt: "$", note: "Run inside Termux. It installs Python with pkg if you don't have it yet." },
   };
   const cmd = document.getElementById("cmd"), note = document.getElementById("where-note"), copy = document.getElementById("copy");
