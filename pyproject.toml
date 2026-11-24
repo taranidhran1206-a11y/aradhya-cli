@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aradhya-code"
+version = "0.3.0"
+description = "Aradhya: a coding agent in your terminal"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["rich>=13", "prompt_toolkit>=3"]
+
+[project.optional-dependencies]
+# The Gemini SDK and Pillow (for the sharp logo picture). Termux works without them.
+full = ["google-genai>=1.20", "pillow>=10"]
+
+[project.urls]
+Homepage = "https://taranidhran1206-a11y.github.io/unknown-project/"
+Source = "https://github.com/taranidhran1206-a11y/unknown-project"
+
+[project.scripts]
+ara = "ara_code.cli:main"
+
+[tool.setuptools]
+packages = ["ara_code", "ara_code.assets"]
+
+[tool.setuptools.package-data]
+"ara_code.assets" = ["*.png"]

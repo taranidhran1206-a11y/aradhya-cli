@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aradhya Code: a coding agent in your terminal</title>
+<meta name="description" content="Aradhya reads your project, shows you every change before she makes it, and runs the tests to prove it worked. One command to install on Windows, macOS, Linux and Termux.">
+<meta property="og:title" content="Aradhya Code">
+<meta property="og:description" content="A coding agent in your terminal. Install with one command on Windows, macOS, Linux and Termux.">
+<meta property="og:image" content="https://taranidhran1206-a11y.github.io/unknown-project/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="600">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#08122E">
+<link rel="icon" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preload" href="assets/fonts/martian-mono.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/young-serif.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+  @font-face { font-family: "Martian Mono"; src: url("assets/fonts/martian-mono.woff2") format("woff2");
+               font-weight: 100 800; font-stretch: 75% 112.5%; font-display: swap; }
+  @font-face { font-family: "Young Serif"; src: url("assets/fonts/young-serif.woff2") format("woff2");
+               font-weight: 400; font-display: swap; }
+  :root {
+    --night: #08122E;
+    --panel: #0E1B3F;
+    --panel-2: #132451;
+    --gold: #E8B55B;
+    --gold-soft: #F3D9A4;
+    --flame: #4BA3F5;
+    --ivory: #F1EBDD;
+    --mist: #8E97B5;
+    --line: #22325F;
+    --add: #1C3B2A; --add-fg: #B6EEC4;
+    --del: #47202A; --del-fg: #F4B9B9;
+    --frame: linear-gradient(90deg, #C9A060 0%, #E8E2D2 50%, #4B96D6 100%);
+    --mono: "Martian Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+    --serif: "Young Serif", Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--night); color: var(--ivory);
+    font: 300 15px/1.75 var(--mono); font-stretch: 87.5%;
+  }
+  a { color: var(--flame); text-underline-offset: 3px; }
+  a:hover { color: var(--gold-soft); }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 4px; }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 28px; }
+
+  /* top bar */
+  header.bar { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+  .brand { display: flex; align-items: center; gap: 12px; color: var(--ivory); text-decoration: none; font-weight: 500; }
+  .brand img { width: 34px; height: 34px; }
+  .bar nav { display: flex; gap: 26px; font-size: 13.5px; }
+  .bar nav a { color: var(--mist); text-decoration: none; }
+  .bar nav a:hover { color: var(--ivory); }
+
+  /* hero */
+  .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: 56px; align-items: center; padding: 56px 0 96px; }
+  h1 { font: 400 clamp(40px, 5.6vw, 68px)/1.04 var(--serif); letter-spacing: -0.015em; margin: 0 0 22px; color: var(--ivory); }
+  .lede { color: #C9CCDB; max-width: 34em; margin: 0 0 34px; font-size: 15.5px; }
+
+  .install { max-width: 560px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: -1px; position: relative; z-index: 1; }
+  .tabs button {
+    font: 400 13px var(--mono); font-stretch: 87.5%; color: var(--mist); background: transparent;
+    border: 1px solid transparent; border-bottom: none; border-radius: 10px 10px 0 0; padding: 9px 16px; cursor: pointer;
+  }
+  .tabs button[aria-selected="true"] { color: var(--ivory); background: var(--panel); border-color: var(--line); }
+  .tabs button:hover { color: var(--ivory); }
+  .cmd {
+    display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 0 12px 12px 12px; padding: 16px 14px 16px 18px;
+  }
+  .cmd { align-items: flex-start; }
+  .cmd code { flex: 1; font: 400 13px/1.65 var(--mono); color: var(--ivory); overflow-wrap: anywhere; padding-top: 4px; }
+  .cmd code .p { color: var(--gold); user-select: none; }
+  .copy {
+    flex: none; font: 500 12.5px var(--mono); font-stretch: 87.5%; color: var(--night); background: var(--gold);
+    border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; min-width: 82px;
+  }
+  .copy:hover { background: var(--gold-soft); }
+  .copy.done { background: var(--flame); }
+  .note { color: var(--mist); font-size: 12.5px; margin: 12px 0 0; }
+
+  /* terminal: the one bold thing, framed like her logo */
+  .term {
+    position: relative; border-radius: 18px; padding: 1.5px; background: var(--frame);
+    box-shadow: 0 30px 80px -30px rgba(75, 163, 245, 0.35), 0 10px 40px -20px rgba(232, 181, 91, 0.3);
+  }
+  .term-in { background: #0A1534; border-radius: 16.5px; overflow: hidden; }
+  .term-top { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); color: var(--mist); font-size: 12px; }
+  .term-top i { width: 11px; height: 11px; border-radius: 50%; background: var(--line); display: inline-block; }
+  .term-top span { margin-left: 8px; }
+  .screen {
+    font: 400 12.5px/1.62 var(--mono); font-stretch: 87.5%; padding: 18px 20px 20px; height: 520px; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: flex-end;
+  }
+  .screen .ln { white-space: pre-wrap; min-height: 1.62em; }
+  .welcome { border: 1px solid var(--gold); border-radius: 8px; padding: 12px 16px; display: flex; gap: 18px; align-items: center; margin-bottom: 14px; }
+  .welcome img { width: 74px; height: 74px; flex: none; }
+  .welcome b { font-weight: 500; }
+  .g { color: var(--gold); } .b { color: var(--flame); } .m { color: var(--mist); } .ok { color: #57C27A; } .w { color: var(--ivory); font-weight: 500; }
+  .you { display: block; background: #1A2A57; padding: 2px 8px; border-radius: 4px; }
+  .diff { padding: 0 8px; border-radius: 3px; }
+  .diff.add { background: var(--add); color: var(--add-fg); }
+  .diff.del { background: var(--del); color: var(--del-fg); }
+  .cursor { display: inline-block; width: 0.6em; height: 1.1em; background: var(--gold); vertical-align: text-bottom; animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* sections */
+  section { padding: 88px 0; border-top: 1px solid var(--line); }
+  h2 { font: 400 clamp(28px, 3.4vw, 40px)/1.15 var(--serif); margin: 0 0 14px; letter-spacing: -0.01em; }
+  .intro { color: #C9CCDB; max-width: 40em; margin: 0 0 48px; }
+
+  .flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; }
+  .flow h3 { font: 500 16px/1.4 var(--mono); font-stretch: 87.5%; margin: 0 0 10px; color: var(--gold); }
+  .flow p { margin: 0 0 18px; color: #C9CCDB; font-size: 14px; }
+  .snip { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; font-size: 12px; line-height: 1.7; overflow-x: auto; white-space: pre; }
+
+  .keys { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 56px; }
+  .keys dl { margin: 0; }
+  .keys div { display: grid; grid-template-columns: 13.5em 1fr; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .keys dt { color: var(--ivory); }
+  .keys dd { margin: 0; color: #C9CCDB; }
+  kbd {
+    font: 500 12px var(--mono); font-stretch: 87.5%; color: var(--ivory); background: var(--panel-2);
+    border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 2px 7px;
+  }
+
+  .where { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; }
+  .where ul { list-style: none; margin: 0; padding: 0; }
+  .where li { padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14px; display: flex; justify-content: space-between; gap: 16px; }
+  .where li span:last-child { color: var(--mist); text-align: right; }
+  p code, li code { font: 400 0.92em var(--mono); color: var(--gold-soft); }
+  .more p { color: #C9CCDB; font-size: 14px; margin: 0 0 16px; }
+  .more .snip { margin-bottom: 18px; white-space: pre-wrap; word-break: break-all; }
+
+  footer { border-top: 1px solid var(--line); padding: 40px 0 56px; color: var(--mist); font-size: 13px; display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+  footer .who { display: flex; align-items: center; gap: 10px; }
+  footer img { width: 22px; height: 22px; }
+
+  @media (max-width: 960px) {
+    .hero { grid-template-columns: 1fr; gap: 48px; padding-top: 24px; }
+    .flow, .keys, .where { grid-template-columns: 1fr; }
+    .flow { gap: 36px; }
+    .screen { height: 470px; }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding: 0 18px; }
+    .bar nav a:not(.gh) { display: none; }
+    .keys div { grid-template-columns: 1fr; gap: 2px; }
+    .screen { font-size: 11px; padding: 14px; height: 440px; }
+    .welcome img { width: 56px; height: 56px; }
+    .tabs button { padding: 8px 11px; font-size: 12px; }
+    section { padding: 64px 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .cursor { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="bar">
+    <a class="brand" href="./"><img src="assets/logo.png" alt=""> Aradhya Code</a>
+    <nav aria-label="Main">
+      <a href="#how">How she works</a>
+      <a href="#keys">Commands</a>
+      <a href="#where">Where it runs</a>
+      <a class="gh" href="https://github.com/taranidhran1206-a11y/unknown-project">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="hero">
+      <div>
+        <h1>Aradhya, in your terminal.</h1>
+        <p class="lede">Tell her what you want in plain words. She reads your project, shows you every change before she makes it, and runs the tests to prove it worked.</p>
+
+        <div class="install" id="install">
+          <div class="tabs" role="tablist" aria-label="Your system">
+            <button role="tab" id="t-win" aria-controls="cmdbox" aria-selected="false" data-os="win">Windows</button>
+            <button role="tab" id="t-nix" aria-controls="cmdbox" aria-selected="true" data-os="nix">macOS &amp; Linux</button>
+            <button role="tab" id="t-termux" aria-controls="cmdbox" aria-selected="false" data-os="termux">Termux</button>
+          </div>
+          <div class="cmd" id="cmdbox" role="tabpanel">
+            <code id="cmd"></code>
+            <button class="copy" id="copy" type="button">Copy</button>
+          </div>
+          <p class="note" id="where-note"></p>
+        </div>
+      </div>
+
+      <div class="term" aria-label="A recorded Aradhya Code session" role="img">
+        <div class="term-in">
+          <div class="term-top"><i></i><i></i><i></i><span>~/projects/calc · ara</span></div>
+          <div class="screen" id="screen"></div>
+        </div>
+      </div>
+    </div>
+
+    <section id="how">
+      <h2>How a session goes</h2>
+      <p class="intro">Every action shows up as one line you can follow. Nothing on your machine changes until you say yes, unless you tell her not to ask.</p>
+      <div class="flow">
+        <div>
+          <h3>She looks before she touches</h3>
+          <p>She searches and reads the files that matter first. Reading never needs your permission; changing always does.</p>
+<div class="snip"><span class="ok">●</span> <span class="w">Grep</span>("def add")
+  <span class="m">⎿  Found 1 match in 1 file</span>
+<span class="ok">●</span> <span class="w">Read</span>(calc.py)
+  <span class="m">⎿  Read 6 lines</span></div>
+        </div>
+        <div>
+          <h3>She shows you the change</h3>
+          <p>Edits arrive as a diff: red comes out, green goes in. Pick yes once, yes for the whole session, or no and tell her what to do instead.</p>
+<div class="snip"><span class="b">Edit file</span>  calc.py
+<span class="diff del">   2 -     return a - b    </span>
+<span class="diff add">   2 +     return a + b    </span>
+<span class="b">❯ 1. Yes</span>
+  2. Yes, allow all edits
+  3. No, and tell Aradhya…</div>
+        </div>
+        <div>
+          <h3>She proves it worked</h3>
+          <p>She runs your tests, the build or the script, fixes what she broke, then tells you in a sentence or two what was wrong.</p>
+<div class="snip"><span class="ok">●</span> <span class="w">Bash</span>(python test_calc.py)
+  <span class="m">⎿  3 passed in 0.01s</span>
+<span class="w">●</span> Fixed. calc.py:2 was
+  <span class="g">subtracting</span> instead of adding.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="keys">
+      <h2>Commands and keys</h2>
+      <p class="intro">Type <kbd>/</kbd> inside a session to see every command with a description, or <kbd>?</kbd> for the shortcuts.</p>
+      <div class="keys">
+        <dl>
+          <div><dt>ara</dt><dd>Start in the current folder</dd></div>
+          <div><dt>ara "fix the test"</dt><dd>Start with a request</dd></div>
+          <div><dt>ara -c</dt><dd>Continue your last session here</dd></div>
+          <div><dt>ara -p "…"</dt><dd>Answer once and exit, for scripts</dd></div>
+          <div><dt>/init</dt><dd>She explores the project and writes ARADHYA.md, her notes for next time</dd></div>
+          <div><dt>/resume</dt><dd>Pick up an earlier session</dd></div>
+          <div><dt>/leo</dt><dd>Switch to Leo: shorter, sharper, colder</dd></div>
+        </dl>
+        <dl>
+          <div><dt><kbd>Shift</kbd> <kbd>Tab</kbd></dt><dd>Change how often she asks: every time, only for commands, or never</dd></div>
+          <div><dt><kbd>Esc</kbd></dt><dd>Stop her mid-answer and redirect</dd></div>
+          <div><dt><kbd>@</kbd></dt><dd>Pick a file to point her at</dd></div>
+          <div><dt><kbd>!</kbd> git status</dt><dd>Run a command yourself; she sees the output</dd></div>
+          <div><dt><kbd>Alt</kbd> <kbd>Enter</kbd></dt><dd>New line in your message</dd></div>
+          <div><dt><kbd>Ctrl</kbd> <kbd>C</kbd> twice</dt><dd>Quit, with a summary of the session</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <section id="where">
+      <div class="where">
+        <div>
+          <h2>Where it runs</h2>
+          <p class="intro">The same interface everywhere. Her logo is a real picture where the terminal can draw one, and block art where it can't; she asks the terminal which.</p>
+          <ul>
+            <li><span>Windows Terminal, PowerShell</span><span>Windows 10 and 11</span></li>
+            <li><span>Terminal, iTerm2, WezTerm, Kitty</span><span>macOS</span></li>
+            <li><span>Any terminal, any distro, a server over SSH</span><span>Linux</span></li>
+            <li><span>Termux</span><span>Android</span></li>
+            <li><span>VS Code's terminal</span><span>Everywhere</span></li>
+          </ul>
+        </div>
+        <div class="more">
+          <h2>Her brain</h2>
+          <p>She thinks with Google Gemini by default; the installer asks for a free key from <a href="https://aistudio.google.com/apikey">Google AI Studio</a> once. Any OpenAI-compatible model works too: Hermes, OpenRouter or a local model through Ollama.</p>
+<div class="snip">ara --provider ollama --model qwen2.5-coder</div>
+          <p>Run the install command again to update. To remove her, run it with <code>ARA_UNINSTALL=1</code>; your sessions and key stay in <code>~/.aradhya</code> until you delete that folder.</p>
+          <p><a href="https://github.com/taranidhran1206-a11y/unknown-project#readme">Read the full guide</a></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span class="who"><img src="assets/logo.png" alt=""> Aradhya Code, made by Tarani</span>
+    <span><a href="https://github.com/taranidhran1206-a11y/unknown-project">Source on GitHub</a></span>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const CMDS = {
+    win: { text: "irm https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.ps1 | iex",
+           prompt: "PS>", note: "Paste into PowerShell or Windows Terminal. Python is installed for you if it's missing." },
+    nix: { text: "curl -fsSL https://taranidhran1206-a11y.github.io/unknown-project/install.sh | sh",
+           prompt: "$", note: "Needs Python 3.9 or newer. On Ubuntu or Debian you may need python3-venv first." },
+    termux: { text: "curl -fsSL https://taranidhran1206-a11y.github.io/unknown-project/install.sh | sh",
+              prompt: "$", note: "Run inside Termux. It installs Python with pkg if you don't have it yet." },
+  };
+  const cmd = document.getElementById("cmd"), note = document.getElementById("where-note"), copy = document.getElementById("copy");
+  const tabs = [...document.querySelectorAll(".tabs button")];
+  let os = "nix";
+  function pick(next) {
+    os = next;
+    tabs.forEach(t => {
+      const on = t.dataset.os === os;
+      t.setAttribute("aria-selected", on); t.tabIndex = on ? 0 : -1;
+    });
+    cmd.innerHTML = `<span class="p">${CMDS[os].prompt} </span>`;
+    cmd.append(CMDS[os].text);
+    note.textContent = CMDS[os].note;
+    copy.textContent = "Copy"; copy.classList.remove("done");
+  }
+  const ua = navigator.userAgent;
+  pick(/Windows/i.test(ua) ? "win" : /Android/i.test(ua) ? "termux" : "nix");
+  tabs.forEach((t, i) => {
+    t.addEventListener("click", () => pick(t.dataset.os));
+    t.addEventListener("keydown", e => {
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      const n = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+      n.focus(); pick(n.dataset.os);
+    });
+  });
+  copy.addEventListener("click", async () => {
+    const text = CMDS[os].text;
+    try { await navigator.clipboard.writeText(text); }
+    catch { const r = document.createRange(); r.selectNodeContents(cmd); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand("copy"); }
+    copy.textContent = "Copied"; copy.classList.add("done");
+    setTimeout(() => { copy.textContent = "Copy"; copy.classList.remove("done"); }, 1800);
+  });
+
+  // The recorded session: plays once on load (or appears finished if motion is reduced).
+  const screen = document.getElementById("screen");
+  const S = [
+    [`<div class="welcome"><img src="assets/logo.png" alt=""><div><b>Welcome back, Tarani!</b><br><span class="m">gemini-flash-latest · Aradhya</span><br><span class="m">~/projects/calc</span></div></div>`, 0],
+    [`<span class="you">&gt; `, 600, "the add test is failing, fix it"],
+    [``, 300],
+    [`<span class="w">●</span> On it da. Let me see where <span class="b">add</span> lives.`, 900],
+    [`<span class="ok">●</span> <span class="w">Grep</span>("def add")`, 500],
+    [`  <span class="m">⎿  Found 1 match in 1 file</span>`, 250],
+    [`<span class="ok">●</span> <span class="w">Read</span>(calc.py)`, 450],
+    [`  <span class="m">⎿  Read 6 lines</span>`, 250],
+    [`<span class="ok">●</span> <span class="w">Update</span>(calc.py)`, 900],
+    [`  <span class="m">⎿  Updated calc.py with 1 addition and 1 removal</span>`, 250],
+    [`     <span class="diff del">2 -     return a - b       </span>`, 120],
+    [`     <span class="diff add">2 +     return a + b       </span>`, 120],
+    [`<span class="ok">●</span> <span class="w">Bash</span>(python test_calc.py)`, 800],
+    [`  <span class="m">⎿  3 passed in 0.01s</span>`, 700],
+    [``, 100],
+    [`<span class="w">●</span> Fixed ✨ <span class="b">calc.py:2</span> was <span class="g">subtracting</span> instead of adding. Tests pass now.`, 700],
+    [``, 200],
+    [`<span class="you">&gt; <span class="cursor"></span></span>`, 400],
+  ];
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const line = html => { const d = document.createElement("div"); d.className = "ln"; d.innerHTML = html; screen.append(d); return d; };
+  if (reduce) { S.forEach(([h, , typed]) => line(h + (typed || ""))); return; }
+  let i = 0;
+  (function next() {
+    if (i >= S.length) return;
+    const [html, wait, typed] = S[i++];
+    setTimeout(() => {
+      const d = line(html);
+      if (!typed) return next();
+      let k = 0;
+      (function type() {
+        d.innerHTML = html + typed.slice(0, k) + (k < typed.length ? '<span class="cursor"></span>' : "");
+        if (k++ < typed.length) setTimeout(type, 38 + Math.random() * 40); else next();
+      })();
+    }, wait);
+  })();
+})();
+</script>
+</body>
+</html>

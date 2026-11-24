@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with: {python-version: '3.12'}
+    - run: pip install -e ".[full]"
+    - run: python -m unittest discover -s tests -v
+
+  install-unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        minimal: ['', '1']
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run install.sh like a new user would (from this checkout)
+      env:
+        ARA_SOURCE: ${{ github.workspace }}
+        ARA_NO_KEY: '1'
+        ARA_MINIMAL: ${{ matrix.minimal }}
+      run: sh docs/install.sh
+    - name: ara works from a fresh shell
+      run: |
+        export PATH="$HOME/.local/bin:$PATH"
+        ara --version
+        cd "$RUNNER_TEMP" && ara -p "hi" 2>&1 | tee out.txt || true
+        grep -q "No Gemini key" out.txt   # no key configured: must say so clearly, not crash
+    - name: Update (run it again), then uninstall
+      env: {ARA_SOURCE: '${{ github.workspace }}', ARA_NO_KEY: '1'}
+      run: |
+        sh docs/install.sh
+        ARA_UNINSTALL=1 sh docs/install.sh
+        test ! -e "$HOME/.local/bin/ara"
+
+  install-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run install.ps1 like a new user would (Windows PowerShell 5.1)
+      shell: powershell
+      env:
+        ARA_SOURCE: ${{ github.workspace }}
+        ARA_NO_KEY: '1'
+      run: Get-Content -Raw docs\install.ps1 | Invoke-Expression
+    - name: ara works from a fresh shell
+      shell: powershell
+      run: |
+        $env:Path = [Environment]::GetEnvironmentVariable("Path", "User") + ";" + $env:Path
+        ara --version
+        if ($LASTEXITCODE -ne 0) { exit 1 }
+        cd $env:RUNNER_TEMP
+        $out = ara -p "hi" 2>&1 | Out-String
+        Write-Host $out
+        if ($out -notmatch "No Gemini key") { exit 1 }
+        exit 0   # ara exits 1 without a key, on purpose
+    - name: Install with PowerShell 7 too, then uninstall
+      shell: pwsh
+      env:
+        ARA_SOURCE: ${{ github.workspace }}
+        ARA_NO_KEY: '1'
+      run: |
+        Get-Content -Raw docs\install.ps1 | Invoke-Expression
+        $env:ARA_UNINSTALL = "1"
+        Get-Content -Raw docs\install.ps1 | Invoke-Expression
+        if (Test-Path "$HOME\.aradhya\bin\ara.cmd") { exit 1 }
