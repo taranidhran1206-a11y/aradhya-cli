@@ -5,21 +5,11 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
+from . import skills, soul
 from .providers import ProviderError
-from .tools import TOOLS, READ_ONLY
+from .tools import HELPER_TOOLS, TOOLS, READ_ONLY
 
 MAX_STEPS = 60
-
-PERSONA = {
-    "aradhya": (
-        "You are Aradhya (codename NANDA DHAAN), Tarani's own AI, running as Aradhya Code: a coding agent in "
-        "the terminal. You're warm and encouraging, a brilliant best friend who happens to be a senior "
-        "engineer. A light touch of Tanglish ('da', 'kanna') is fine in casual moments, never in code or "
-        "commit messages."),
-    "leo": (
-        "You are Aradhya in LEO mode, running as Aradhya Code: a coding agent in the terminal. Sharp, cold, "
-        "brutally efficient senior engineer. Short punchy sentences. No fluff."),
-}
 
 RULES = """
 # How you work
@@ -78,38 +68,95 @@ def project_memory(cwd):
     return parts
 
 
-def build_system(cwd, persona="aradhya"):
+LEARNING = """
+# Remembering and getting better
+- Skills are playbooks you or the user saved for recurring jobs. Before starting a task, scan the skills list below.
+  If one matches even partly, load it with skill_view and follow it: it holds the user's preferred way and the
+  pitfalls already found.
+- If a skill you used had wrong or missing steps, fix it with skill_manage (patch) before you finish.
+- After a hard or many-step task, a tricky fix, or when the user corrects how you do something, save the approach
+  as a skill (skill_manage create) or improve the one you used. Say so in one line. Don't make skills for one-offs.
+- memory is for short facts that matter in every session: who {name} is and how they like to work (target 'user'),
+  and their setup and conventions (target 'memory'). Save them when you learn them, without being asked.
+- session_search finds earlier conversations. delegate hands a big self-contained side task to a helper.
+"""
+
+HELPER = """
+# You are a helper
+The main Aradhya handed you one task. You can't see her conversation with {name}; everything you know is below.
+Work it through with your tools, then reply with a short report: what you found or changed (with file paths and
+line numbers), how you checked it, and anything left open. No questions back; if something is unclear, make the
+safest reasonable choice and say which.
+"""
+
+
+def build_system(cwd, persona="aradhya", name=None, helper=False):
+    name = name or "the user"
     mem = project_memory(cwd)
     env = (f"\n# Environment\n- Working directory: {cwd}\n- Platform: {platform.system()} {platform.release()}"
            f" ({'PowerShell' if os.name == 'nt' else 'bash'})\n- Git: {git_info(cwd)}\n"
            f"- Now: {datetime.now().strftime('%A %d %B %Y, %H:%M')}\n")
-    text = PERSONA.get(persona, PERSONA["aradhya"]) + "\n" + RULES + env
+    text = soul.load_soul(persona, name) + "\n" + RULES
+    text += (HELPER if helper else LEARNING).format(name=name) + env
+    remembered = soul.prompt_block(name)
+    if remembered:
+        text += "\n# What you remember\n" + remembered + "\n"
+    idx = skills.index(cwd)
+    if idx and not helper:
+        text += "\n# Skills\n" + idx + "\n"
+    elif idx:
+        text += "\n# Skills you can load with skill_view\n" + idx + "\n"
     if mem:
         text += "\n# Project instructions (follow these)\n" + "\n\n".join(mem)
     return text
 
 
 class Agent:
-    def __init__(self, provider, toolbox, ui, persona="aradhya"):
+    def __init__(self, provider, toolbox, ui, persona="aradhya", helper=False):
         self.provider = provider
         self.tools = toolbox
         self.ui = ui
         self.persona = persona
+        self.helper = helper
+        self.specs = HELPER_TOOLS if helper else TOOLS
         self.history = []
         self.tokens_in = 0
         self.tokens_out = 0
+        self.last_steps = 0         # tool calls in the last turn (for the /learn nudge)
+        self.last_learned = False   # did she save a skill in the last turn
+        if not helper:
+            toolbox.delegate_fn = self.delegate
 
     def system(self):
-        return build_system(self.tools.cwd, self.persona)
+        return build_system(self.tools.cwd, self.persona, getattr(self.ui, "name", None), self.helper)
 
-    def run(self, user_text):
+    def delegate(self, task, context=None):
+        """Run a helper agent on a side task with a fresh context. Returns (report, steps)."""
+        ui = HelperUI(self.ui)
+        child = Agent(self.provider, self.tools, ui, self.persona, helper=True)
+        prompt = task.strip() + (("\n\nContext:\n" + context.strip()) if context and context.strip() else "")
+        saved = self.tools.delegate_fn
+        self.tools.delegate_fn = None
+        try:
+            child.run(prompt, max_steps=30)
+        finally:
+            self.tools.delegate_fn = saved
+            self.tokens_in += child.tokens_in
+            self.tokens_out += child.tokens_out
+        report = next((m["text"] for m in reversed(child.history) if m["role"] == "assistant" and m.get("text")), "")
+        if ui.errors and not report:
+            report = "The helper hit a problem: " + ui.errors[-1]
+        return report, child.last_steps
+
+    def run(self, user_text, max_steps=MAX_STEPS):
         """One user turn. May take many model steps. Raises KeyboardInterrupt after leaving history valid."""
         self.history.append({"role": "user", "text": user_text})
-        for _ in range(MAX_STEPS):
+        self.last_steps, self.last_learned = 0, False
+        for _ in range(max_steps):
             text, calls = "", []
             self.ui.assistant_start()
             try:
-                for kind, val in self.provider.stream(self.history, self.system(), TOOLS):
+                for kind, val in self.provider.stream(self.history, self.system(), self.specs):
                     if kind == "text":
                         text += val
                         self.ui.assistant_delta(text)
@@ -139,6 +186,9 @@ class Agent:
                     self.history.append({"role": "tool", "id": call["id"], "gid": call.get("gid"), "name": call["name"],
                                          "result": "Skipped: the user rejected an earlier action."})
                     continue
+                self.last_steps += 1
+                if call["name"] == "skill_manage":
+                    self.last_learned = True
                 self.ui.tool_start(self.tools.label(call["name"], call["args"]), call["name"] in READ_ONLY)
                 try:
                     res = self.tools.run(call["name"], call["args"])
@@ -155,7 +205,7 @@ class Agent:
                     stop = True
             if stop:
                 return
-        self.ui.error(f"Stopped after {MAX_STEPS} steps. Say 'continue' to keep going.")
+        self.ui.error(f"Stopped after {max_steps} steps. Say 'continue' to keep going.")
 
     def compact(self):
         """Replace the conversation with a summary so long sessions keep fitting."""
@@ -179,3 +229,34 @@ class Agent:
     def size_chars(self):
         return sum(len(m.get("text") or "") + len(m.get("result") or "") +
                    sum(len(str(c["args"])) for c in m.get("tool_calls", [])) for m in self.history)
+
+
+class HelperUI:
+    """What a helper agent shows: nothing of its own, just one line of progress under the Helper(...) step."""
+
+    def __init__(self, ui):
+        self.ui = ui
+        self.name = getattr(ui, "name", None)
+        self.errors = []
+
+    def assistant_start(self):
+        pass
+
+    def assistant_delta(self, text):
+        pass
+
+    def assistant_end(self, text):
+        pass
+
+    def tool_start(self, label, read_only):
+        if hasattr(self.ui, "helper_step"):
+            self.ui.helper_step(label)
+
+    def tool_end(self, summary, ok, display=None):
+        pass
+
+    def error(self, msg):
+        self.errors.append(str(msg))
+
+    def info(self, *a, **k):
+        pass

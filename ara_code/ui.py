@@ -435,6 +435,20 @@ class TerminalUI:
             self._live.start()
             self.esc.start()
 
+    def helper_step(self, label):
+        """A helper agent's current step, shown under the running Helper(...) line."""
+        if not self.interactive:
+            return
+        if self._think is None:
+            self._think = Thinking(self.accent)
+            self._think.verb = "Working"
+        group = Group(self._head(self._tool or "Helper", FAINT), Text("  ⎿  " + label, style=MUTED), self._think)
+        if self._live is None:
+            self._live = Live(group, console=self.console, refresh_per_second=15, transient=True)
+            self._live.start()
+        else:
+            self._live.update(group)
+
     def _head(self, label, dot):
         name, _, rest = label.partition("(")
         t = Text("● ", style=dot)

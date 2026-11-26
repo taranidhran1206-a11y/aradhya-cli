@@ -19,7 +19,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from . import __version__, engines
+from . import __version__, engines, skills, soul
 from .agent import Agent
 from .providers import ProviderError, make_provider
 from .tools import ToolBox
@@ -36,6 +36,10 @@ HELP = """[bold]Commands[/bold]
   /init              write an ARADHYA.md describing this project (her project memory)
   /mode [name]       default (asks first) · accept-edits · yolo (never asks)
   /model [name]      switch the model, or pick another brain
+  /skills            her skills (playbooks); /<skill-name> runs one
+  /learn [what]      save how she did something as a skill
+  /memory            what she remembers about you and your setup
+  /soul [edit]       her personality file, SOUL.md
   /leo, /aradhya     switch persona
   /resume            pick an earlier session from this folder
   /todos             show the task list
@@ -107,6 +111,8 @@ COMMANDS = [
     ("/help", "Show commands and keys"), ("/clear", "Start a fresh conversation"),
     ("/compact", "Summarize the chat to free up context"), ("/init", "Write ARADHYA.md for this project"),
     ("/mode", "default · accept-edits · yolo"), ("/model", "Show or switch the model"),
+    ("/skills", "Her skills; /<name> runs one"), ("/learn", "Save what she just did as a skill"),
+    ("/memory", "What she remembers"), ("/soul", "Her personality (SOUL.md)"),
     ("/resume", "Pick up an earlier session here"), ("/todos", "Show her task list"),
     ("/status", "Model, folder, tokens used"), ("/leo", "Switch to Leo (sharp, cold)"),
     ("/aradhya", "Switch back to Aradhya"), ("/exit", "Quit"),
@@ -145,6 +151,15 @@ def make_reader(ui, agent, toolbox):
             state["files"], state["files_at"] = out, time.time()
         return state["files"]
 
+    def skill_list():
+        if time.time() - state.get("skills_at", 0) > 10:
+            try:
+                state["skills"] = skills.all_skills(toolbox.cwd)
+            except Exception:
+                state["skills"] = []
+            state["skills_at"] = time.time()
+        return state["skills"]
+
     class AraCompleter(Completer):
         def get_completions(self, doc, event):
             text = doc.text_before_cursor
@@ -152,6 +167,11 @@ def make_reader(ui, agent, toolbox):
                 for name, desc in COMMANDS:
                     if name.startswith(text.lower()):
                         yield Completion(name, start_position=-len(text), display=name, display_meta=desc)
+                for sk in skill_list():
+                    if ("/" + sk.name).startswith(text.lower()):
+                        d = sk.description if len(sk.description) < 60 else sk.description[:57] + "…"
+                        yield Completion("/" + sk.name, start_position=-len(text), display="/" + sk.name,
+                                         display_meta="skill · " + d)
                 return
             word = doc.get_word_before_cursor(WORD=True)
             if word.startswith("@"):
@@ -301,6 +321,8 @@ def setup_console():
             pass
 
 
+LEARN_HEAD = skills.LEARN_PROMPT[:30]
+
 SUBCOMMANDS = ("setup", "model", "login", "logout", "auth", "doctor")
 
 
@@ -390,10 +412,13 @@ def main(argv=None):
     except ImportError:
         ui.error("Missing package. Run: pip install rich prompt_toolkit")
         return 1
+    soul.ensure_soul()
+    skills.seed()
     toolbox = ToolBox(cwd, ui, mode)
     agent = Agent(provider, toolbox, ui, persona)
 
     session_path = new_session_path()
+    toolbox.session_path = session_path
     if args.cont or args.resume:
         sessions = list_sessions(cwd)
         if not sessions:
@@ -403,6 +428,7 @@ def main(argv=None):
             if args.resume:
                 pick = choose_session(ui, sessions) or sessions[0]
             session_path, data = pick
+            toolbox.session_path = session_path
             agent.history = data.get("history", [])
             agent.persona = ui.persona = data.get("persona", persona)
             agent.tokens_in, agent.tokens_out = data.get("tokens", [0, 0])
@@ -452,15 +478,18 @@ def main(argv=None):
             if r == "exit":
                 break
             if r == "clear":
-                session_path = new_session_path()
+                session_path = toolbox.session_path = new_session_path()
             if isinstance(r, tuple) and r[0] == "resume":
-                session_path = r[1]
+                session_path = toolbox.session_path = r[1]
             if isinstance(r, tuple) and r[0] == "run":
                 pending = r[1]
                 ui.info("  " + r[1][:60] + ("…" if len(r[1]) > 60 else ""), style=MUTED)
             continue
         try:
             agent.run(text)
+            if agent.last_steps >= 8 and not agent.last_learned and not text.startswith(LEARN_HEAD):
+                ui.console.print(f"[{FAINT}]  ✦ That took {agent.last_steps} steps. [/][{MUTED}]/learn[/]"
+                                 f"[{FAINT}] saves how she did it as a skill, so next time is quicker.[/]\n")
         except KeyboardInterrupt:
             ui._stop_live()
             ui.console.print(f"[{RED}]  ⎿  Interrupted · What should she do instead?[/]\n")
@@ -555,6 +584,23 @@ def slash(text, ui, agent, toolbox, cwd):
                 agent.history = pick[1].get("history", [])
                 c.print(f"[{MUTED}]  Resumed.[/]\n")
                 return ("resume", pick[0])
+    elif cmd == "skills":
+        show_skills(ui, cwd)
+    elif cmd == "learn":
+        return ("run", skills.learn_prompt(arg))
+    elif cmd == "memory":
+        show_memory(ui)
+    elif cmd == "soul":
+        p = soul.soul_path(agent.persona)
+        if arg == "edit":
+            open_in_editor(ui, p)
+        else:
+            text = p.read_text("utf-8", "replace") if p.exists() else ""
+            body = [l for l in text.split("-->")[-1].strip().splitlines()][:8]
+            c.print(f"[{GOLD}]  ✦ Her soul[/] [{MUTED}]· {p}[/]")
+            for l in body:
+                c.print(f"[{MUTED}]    {l}[/]")
+            c.print(f"[{FAINT}]    /soul edit opens it. She reads it every time, so changes count straight away.[/]\n")
     elif cmd == "todos":
         if toolbox.todos:
             ui.show_todos(toolbox.todos)
@@ -567,8 +613,64 @@ def slash(text, ui, agent, toolbox, cwd):
                 f"  Tokens   {agent.tokens_in:,} in · {agent.tokens_out:,} out\n"
                 f"  Context  ~{agent.size_chars() // 4:,} tokens in this conversation\n")
     else:
-        c.print(f"[{RED}]  Unknown command /{cmd}. Try /help.[/]\n")
+        sk = skills.find(cwd, cmd)
+        if sk:
+            return ("run", skills.use_prompt(sk.name, arg))
+        c.print(f"[{RED}]  Unknown command /{cmd}. Try /help or /skills.[/]\n")
     return None
+
+
+def show_skills(ui, cwd):
+    c = ui.console
+    found = skills.all_skills(cwd)
+    if not found:
+        c.print(f"[{MUTED}]  No skills yet. After a hard task, /learn saves how she did it.[/]\n")
+        return
+    c.print(f"[{GOLD}]  ✦ Her skills[/] [{MUTED}]· type /<name> to use one, /learn to add one[/]")
+    for scope, title in (("project", "This project"), ("yours", "Yours, everywhere")):
+        group = [s for s in found if s.scope == scope]
+        if not group:
+            continue
+        c.print(f"[{MUTED}]  {title}[/]")
+        from rich.table import Table
+        from rich.text import Text
+        grid = Table.grid(padding=(0, 2))
+        grid.add_column(width=2)
+        grid.add_column(no_wrap=True)
+        grid.add_column(ratio=1)
+        for s in group:
+            grid.add_row("", Text("/" + s.name, style="bold"), Text(s.description, style=MUTED))
+        c.print(grid)
+    c.print(f"[{FAINT}]  Saved in {skills.user_dir()} and <project>/.aradhya/skills[/]\n")
+
+
+def show_memory(ui):
+    c = ui.console
+    c.print(f"[{GOLD}]  ✦ What she remembers[/]")
+    for target, title in (("user", f"About {ui.name}"), ("memory", "Her notes")):
+        items = soul.entries(target)
+        c.print(f"[{MUTED}]  {title} · {soul.size(items)}/{soul.LIMITS[target]} characters[/]")
+        if not items:
+            c.print(f"[{FAINT}]    nothing yet[/]")
+        for e in items:
+            c.print(f"    • {e}")
+    c.print(f"[{FAINT}]  Edit or clear them in {soul.memory_path('user').parent} (entries are split by §)[/]\n")
+
+
+def open_in_editor(ui, path):
+    import shutil
+    import subprocess
+    editor = os.environ.get("VISUAL") or os.environ.get("EDITOR")
+    if not editor:
+        editor = "notepad" if os.name == "nt" else next((e for e in ("nano", "vim", "vi") if shutil.which(e)), None)
+    if not editor:
+        ui.console.print(f"[{MUTED}]  Open {path} in any editor.[/]\n")
+        return
+    try:
+        subprocess.call(editor.split() + [str(path)])
+        ui.console.print(f"[{MUTED}]  Saved. She'll use it from her next reply.[/]\n")
+    except OSError:
+        ui.console.print(f"[{MUTED}]  Couldn't start {editor}. Open {path} in any editor.[/]\n")
 
 
 if __name__ == "__main__":

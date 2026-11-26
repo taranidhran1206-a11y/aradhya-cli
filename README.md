@@ -20,6 +20,7 @@ Aradhya as a coding agent in your terminal. You tell her what you want in plain 
 - [Keys](#keys)
 - [How careful she is](#how-careful-she-is)
 - [What she can do](#what-she-can-do)
+- [Her soul, memory and skills](#her-soul-memory-and-skills)
 - [Project memory: ARADHYA.md](#project-memory-aradhyamd)
 - [Sessions](#sessions)
 - [Brains she can use](#brains-she-can-use)
@@ -134,6 +135,10 @@ Type `/` to see this list with descriptions:
 | `/compact` | Summarizes a long conversation to free up space (she also does this by herself when it gets very long) |
 | `/mode` | Changes how careful she is: `default`, `accept-edits` or `yolo` |
 | `/model` | Picks another model or brain from a list, or switches straight away: `/model gemini-3.8-flash` |
+| `/skills` | Her skills; `/<skill-name>` runs one, e.g. `/code-review my branch` |
+| `/learn` | Saves how she just did something as a skill: `/learn`, or `/learn the deploy steps` |
+| `/memory` | What she remembers about you and your setup |
+| `/soul` | Her personality file; `/soul edit` opens it |
 | `/resume` | Picks up an earlier session in this folder |
 | `/todos` | Shows her current task list |
 | `/status` | Folder, model, mode and tokens used |
@@ -192,6 +197,41 @@ You can also start in a mode: `ara --accept-edits` or `ara --yolo`.
 | To-do list | `Update Todos` | For bigger jobs, so you can see her plan and progress |
 
 Her instructions say not to commit, push, deploy or delete branches unless you ask, and not to print secrets from `.env` files. In `default` mode you approve every command anyway.
+
+## Her soul, memory and skills
+
+Borrowed from [Hermes Agent](https://github.com/NousResearch/hermes-agent)'s learning loop: she remembers you, keeps
+playbooks for jobs she's done, and gets better at them.
+
+**Soul.** `~/.aradhya/SOUL.md` is who she is and how she talks. It starts as the Aradhya you know; change it
+however you like (`/soul edit`). `{name}` in it becomes your name. Leo mode has its own, `LEO.md`. She reads it
+every time, so changes count straight away.
+
+**Memory.** She keeps two short notebooks that go into every conversation: what she knows about you
+(`~/.aradhya/memories/USER.md`) and her notes on your setup and conventions (`MEMORY.md`). She saves to them by
+herself when she learns something lasting ("you prefer pytest", "this machine uses WSL2"), and shows it as
+`● Remember(about you)`. They're small on purpose (about 1,400 and 2,200 characters), so she tidies them when
+they fill up. `/memory` shows them; edit the files to change or clear anything.
+
+**Skills.** A skill is a playbook for a recurring job: a folder with a `SKILL.md` (the open
+[agentskills.io](https://agentskills.io) format). She sees every skill's one-line description, loads the full
+playbook when a task fits, and follows it. After a hard or many-step task, or when you correct how she does
+something, she writes a new skill or fixes the one she used. You can also ask: `/learn` turns what she just did
+into a skill, and after a long task she reminds you it's there.
+
+- She starts with four: `code-review`, `commit-message`, `fix-failing-test` and `skill-authoring` (how to write
+  a good skill). They're copied into `~/.aradhya/skills`, so you can edit or delete them.
+- Your skills live in `~/.aradhya/skills/` and work everywhere. A project's own skills live in
+  `<project>/.aradhya/skills/` (she also reads `.agents/skills` and `.claude/skills`), and win when names match.
+- `/skills` lists them, `/<skill-name> [task]` runs one, and you can write your own by hand: a folder with a
+  `SKILL.md` that starts with `name:` and `description:` frontmatter.
+
+**Past sessions.** When you say "like last time", she searches your earlier conversations (all folders) and
+shows it as `● Recall("…")`.
+
+**Helpers.** For a big side job (searching a large codebase, researching something, reviewing a diff) she can
+hand it to a helper agent that starts with a fresh context and reports back. It shows as `● Helper(…)` with the
+helper's current step underneath, and it asks before edits and commands the same way she does.
 
 ## Project memory: ARADHYA.md
 

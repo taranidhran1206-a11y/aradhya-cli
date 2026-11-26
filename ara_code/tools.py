@@ -66,7 +66,64 @@ TOOLS = [
          "required": ["content", "status"]}}}, "required": ["todos"]}},
 ]
 
-READ_ONLY = {"read_file", "list_files", "grep", "web_fetch", "todo_write"}
+LEARNING_TOOLS = [
+    {"name": "memory",
+     "description": "Save lasting facts that matter in EVERY future session. target 'user': who the user is, how "
+                    "they like to work, their preferences and corrections. target 'memory': your own notes about "
+                    "their setup, conventions, tool quirks and lessons. One short line per entry. Make all "
+                    "changes to one target in one call; if it's full, remove or shorten stale entries in that same "
+                    "call. Never save secrets, task progress or things that are easy to look up again. Step-by-step "
+                    "procedures belong in a skill, not here.",
+     "parameters": {"type": "object", "properties": {
+         "target": {"type": "string", "enum": ["user", "memory"]},
+         "operations": {"type": "array", "items": {"type": "object", "properties": {
+             "action": {"type": "string", "enum": ["add", "patch", "remove"]},
+             "content": {"type": "string", "description": "add: the new entry. patch: the text replacing old_text."},
+             "old_text": {"type": "string", "description": "patch/remove: some text from the entry to change"}},
+             "required": ["action"]}}},
+         "required": ["target", "operations"]}},
+    {"name": "skill_view",
+     "description": "Load a skill (a saved playbook) by name and follow it. Returns its SKILL.md and a list of "
+                    "its extra files; pass file_path to read one of those.",
+     "parameters": {"type": "object", "properties": {
+         "name": {"type": "string"}, "file_path": {"type": "string", "description": "e.g. references/api.md"}},
+         "required": ["name"]}},
+    {"name": "skill_manage",
+     "description": "Create or improve skills: your playbooks for recurring jobs. action 'create' needs content: a "
+                    "full SKILL.md starting with frontmatter (---, name: <the name>, description: one sentence "
+                    "under 160 characters starting 'Use when', ---) then the steps, exact commands, pitfalls and "
+                    "how to check it worked. 'patch' fixes part of a skill (old_string -> new_string; or content "
+                    "to rewrite it all). 'write_file' adds a supporting file (file_path like references/x.md, "
+                    "file_content). 'delete' removes one. Write lessons, not a log of this session. scope "
+                    "'project' saves it in this project only (default 'user': everywhere).",
+     "parameters": {"type": "object", "properties": {
+         "action": {"type": "string", "enum": ["create", "patch", "write_file", "delete"]},
+         "name": {"type": "string", "description": "lowercase-with-hyphens"},
+         "content": {"type": "string"}, "old_string": {"type": "string"}, "new_string": {"type": "string"},
+         "replace_all": {"type": "boolean"}, "file_path": {"type": "string"}, "file_content": {"type": "string"},
+         "scope": {"type": "string", "enum": ["user", "project"]}},
+         "required": ["action", "name"]}},
+    {"name": "session_search",
+     "description": "Search your earlier conversations with the user (all folders) for words, e.g. when they say "
+                    "'like last time' or ask what you did before. Returns matching sessions with snippets.",
+     "parameters": {"type": "object", "properties": {
+         "query": {"type": "string"}, "limit": {"type": "integer", "description": "default 5"}},
+         "required": ["query"]}},
+    {"name": "delegate",
+     "description": "Hand a self-contained side task to a helper agent that starts with an empty context: a deep "
+                    "search through a big codebase, research, reviewing a diff, tracking down a bug's cause. It "
+                    "can read, search, run commands and edit files with the same permissions as you, but it can't "
+                    "see this conversation, so put everything it needs in task and context. You get its report "
+                    "back; check its claims before relying on them. Don't delegate small things.",
+     "parameters": {"type": "object", "properties": {
+         "task": {"type": "string", "description": "What to do and what to report back"},
+         "context": {"type": "string", "description": "Paths, findings and constraints it should know"}},
+         "required": ["task"]}},
+]
+TOOLS = TOOLS + LEARNING_TOOLS
+HELPER_TOOLS = [t for t in TOOLS if t["name"] not in ("memory", "skill_manage", "delegate", "todo_write")]
+
+READ_ONLY = {"read_file", "list_files", "grep", "web_fetch", "todo_write", "skill_view", "session_search"}
 EDIT_TOOLS = {"write_file", "edit_file"}
 
 
@@ -88,6 +145,8 @@ class ToolBox:
         self.always = set()         # tool names approved for the session
         self.always_cmds = set()    # bash command prefixes approved for the session
         self.todos = []
+        self.session_path = None    # so session_search can skip the conversation we're in
+        self.delegate_fn = None     # set by the agent: runs a helper agent
 
     # ── helpers ──
     def _path(self, p):
@@ -116,6 +175,19 @@ class ToolBox:
             return f"Fetch({a.get('url', '')})"
         if name == "todo_write":
             return "Update Todos"
+        if name == "memory":
+            return f"Remember({'about you' if a.get('target') == 'user' else 'notes'})"
+        if name == "skill_view":
+            return f"Skill({a.get('name', '')}{' · ' + a['file_path'] if a.get('file_path') else ''})"
+        if name == "skill_manage":
+            verb = {"create": "New skill", "patch": "Improve skill", "write_file": "Skill file",
+                    "delete": "Delete skill"}.get(a.get("action"), "Skill")
+            return f"{verb}({a.get('name', '')})"
+        if name == "session_search":
+            return f"Recall(\"{a.get('query', '')}\")"
+        if name == "delegate":
+            task = " ".join(str(a.get("task", "")).split())
+            return f"Helper({task if len(task) < 60 else task[:57] + '…'})"
         return f"{name}()"
 
     def _permit(self, name, title, preview, cmd_prefix=None):
@@ -328,6 +400,63 @@ class ToolBox:
         done = sum(1 for t in self.todos if t["status"] == "completed")
         return ToolResult(f"Todo list updated ({done}/{len(self.todos)} done).", summary="",
                           display={"todos": self.todos})
+
+    # ── remembering and learning ──
+    def t_memory(self, target, operations=None, **single):
+        from . import soul
+        if not operations and single.get("action"):
+            operations = [single]
+        ok, msg, changes = soul.apply(target, operations or [])
+        if not ok:
+            return ToolResult(msg, ok=False, summary=msg.splitlines()[0][:120])
+        if not changes:
+            return ToolResult("Already saved; nothing changed.", summary="Already knew that")
+        verb = {"add": "Remembered", "patch": "Updated", "remove": "Forgot"}
+        shown = "; ".join(f"{verb[a]}: {t if len(t) < 90 else t[:87] + '…'}" for a, t in changes)
+        return ToolResult(msg, summary=shown)
+
+    def t_skill_view(self, name, file_path=None):
+        from . import skills
+        skill, text = skills.view(self.cwd, name, file_path)
+        if skill is None:
+            return ToolResult(text, ok=False, summary=text.split(".")[0])
+        where = "this project" if skill.scope == "project" else "your skills"
+        return ToolResult(text, summary=f"Loaded {skill.name}{' · ' + file_path if file_path else ''} ({where})")
+
+    def t_skill_manage(self, action, name, content=None, old_string=None, new_string=None, replace_all=False,
+                       file_path=None, file_content=None, scope="user"):
+        from . import skills
+        existing = skills.find(self.cwd, name)
+        in_project = (scope == "project" and action == "create") or (existing is not None and existing.scope == "project")
+        if action == "delete" or in_project:  # deleting, or writing inside the project: ask like any edit
+            kind = "write_file" if in_project and action != "delete" else "skill_manage"
+            where = str(existing.folder) if existing else f".aradhya/skills/{name}"
+            ok, fb = self._permit(kind, f"{action} skill {name}",
+                                  {"kind": "new", "path": where, "text": content or file_content or f"Delete {where}"})
+            if not ok:
+                return self._denied(fb)
+        ok, msg, display = skills.manage(self.cwd, action, name, content, old_string, new_string, replace_all,
+                                         file_path, file_content, scope)
+        return ToolResult(msg, ok=ok, summary=msg if not ok else msg.split(" at ")[0], display=display if ok else {})
+
+    def t_session_search(self, query, limit=5):
+        from . import soul
+        hits = soul.search_sessions(query, int(limit or 5), skip=self.session_path)
+        if not hits:
+            return ToolResult(f"No earlier conversation mentions '{query}'.", summary="Nothing found")
+        out = []
+        for h in hits:
+            out.append(f"## {h['title']}\n{h['when']} · {h['folder']} · {h['matches']} matching messages")
+            out.extend(f"> {s}" for s in h["snippets"])
+        return ToolResult("\n".join(out), summary=f"{len(hits)} earlier session{'s' * (len(hits) != 1)}")
+
+    def t_delegate(self, task, context=None):
+        if not self.delegate_fn:
+            return ToolResult("A helper can't start a helper of its own. Do it yourself.", ok=False,
+                              summary="Not available here")
+        report, steps = self.delegate_fn(task, context)
+        return ToolResult(report or "(The helper finished without a report.)",
+                          summary=f"Helper finished in {steps} step{'s' * (steps != 1)}")
 
 
 def _walk(base):

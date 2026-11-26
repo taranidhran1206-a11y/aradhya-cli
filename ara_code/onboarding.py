@@ -639,6 +639,9 @@ def setup(ui, first_run=False):
 
 
 def summary(ui, w):
+    from . import skills, soul
+    soul.ensure_soul()
+    skills.seed()
     c = ui.console
     c.print()
     c.print(Text.assemble(("  ✦ ", GOLD), ("All set", f"bold {GOLD}"),
@@ -646,6 +649,8 @@ def summary(ui, w):
     c.print(Text("    Change things later: ", style=MUTED) + Text("ara model", style="bold")
             + Text(" · ", style=MUTED) + Text("ara login", style="bold") + Text(" · ", style=MUTED)
             + Text("ara doctor", style="bold") + Text(" · ", style=MUTED) + Text("ara setup", style="bold"))
+    c.print(Text("    Her personality is in ", style=MUTED) + Text(_short(soul.soul_path()), style="bold")
+            + Text(". Make her yours: /soul edit", style=MUTED))
     c.print()
 
 

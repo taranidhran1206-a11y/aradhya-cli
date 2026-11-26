@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aradhya-code"
-version = "0.4.0"
+version = "0.5.0"
 description = "Aradhya: a coding agent in your terminal"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -25,5 +25,5 @@ ara = "ara_code.cli:main"
 packages = ["ara_code", "ara_code.assets"]
 
 [tool.setuptools.package-data]
-"ara_code" = ["google_client.json"]
+"ara_code" = ["google_client.json", "bundled_skills/*/SKILL.md", "bundled_skills/*/*/*"]
 "ara_code.assets" = ["*.png"]
