@@ -239,7 +239,7 @@ def google_client():
         if not p:
             continue
         try:
-            c = _client_from(json.loads(Path(p).read_text("utf-8")))
+            c = _client_from(json.loads(Path(p).read_text("utf-8-sig")))
         except (OSError, ValueError):
             continue
         if c:
@@ -249,7 +249,7 @@ def google_client():
 
 def import_google_client(path):
     """Copy a client_secret.json downloaded from Google Cloud into ~/.aradhya."""
-    data = json.loads(Path(path).expanduser().read_text("utf-8"))
+    data = json.loads(Path(path).expanduser().read_text("utf-8-sig"))
     c = _client_from(data)
     if not c:
         raise LoginError("That file isn't an OAuth client from Google Cloud (no client_id in it).")

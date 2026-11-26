@@ -19,11 +19,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from . import __version__, engines, skills, soul
+from . import __version__, engines, skills, soul, termcaps
 from .agent import Agent
 from .providers import ProviderError, make_provider
 from .tools import ToolBox
-from .ui import TerminalUI, GOLD, BLUE, MUTED, RED, FAINT
+from .ui import TerminalUI, GOLD, MUTED, RED, FAINT
 
 HOME = engines.HOME
 SESSIONS = HOME / "sessions"
@@ -65,7 +65,7 @@ def load_env():
     for f in candidates:
         if not f.exists():
             continue
-        for line in f.read_text("utf-8", "replace").splitlines():
+        for line in f.read_text("utf-8-sig", "replace").splitlines():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1)
@@ -92,7 +92,7 @@ def list_sessions(cwd):
         return out
     for f in SESSIONS.glob("*.json"):
         try:
-            d = json.loads(f.read_text("utf-8"))
+            d = json.loads(f.read_text("utf-8-sig"))
         except (OSError, ValueError):
             continue
         if Path(d.get("cwd", "")) == Path(cwd):
@@ -297,28 +297,7 @@ def make_reader(ui, agent, toolbox):
 # ─────────────────────────── main ───────────────────────────
 
 def setup_console():
-    """UTF-8 output everywhere, and on Windows switch on escape-code (VT) processing so colours, the input box
-    and the logo image work in Windows Terminal, the old console host, VS Code and PowerShell alike."""
-    for stream in (sys.stdout, sys.stderr):
-        enc = (getattr(stream, "encoding", "") or "").lower().replace("-", "")
-        if enc != "utf8":
-            try:
-                stream.reconfigure(encoding="utf-8", errors="replace")
-            except Exception:
-                pass
-    if os.name == "nt":
-        try:
-            import ctypes
-            k32 = ctypes.windll.kernel32
-            k32.SetConsoleOutputCP(65001)
-            k32.SetConsoleCP(65001)
-            for std in (-11, -12):  # stdout, stderr
-                h = k32.GetStdHandle(std)
-                mode = ctypes.c_uint()
-                if k32.GetConsoleMode(h, ctypes.byref(mode)):
-                    k32.SetConsoleMode(h, mode.value | 0x0004)  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
-        except Exception:
-            pass
+    termcaps.setup_console()
 
 
 LEARN_HEAD = skills.LEARN_PROMPT[:30]

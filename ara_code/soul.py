@@ -58,7 +58,7 @@ def ensure_soul():
 
 def load_soul(persona, name):
     try:
-        text = soul_path(persona).read_text("utf-8", "replace")
+        text = soul_path(persona).read_text("utf-8-sig", "replace")
     except OSError:
         text = DEFAULT_SOUL.get(persona, DEFAULT_SOUL["aradhya"])
     text = re.sub(r"(?s)<!--.*?-->", "", text).strip()
@@ -76,7 +76,7 @@ def memory_path(target):
 
 def entries(target):
     try:
-        raw = memory_path(target).read_text("utf-8", "replace")
+        raw = memory_path(target).read_text("utf-8-sig", "replace")
     except OSError:
         return []
     return [e.strip() for e in raw.split("§") if e.strip()]
@@ -166,7 +166,7 @@ def search_sessions(query, limit=5, skip=None):
         if skip and Path(skip) == f:
             continue
         try:
-            d = json.loads(f.read_text("utf-8"))
+            d = json.loads(f.read_text("utf-8-sig"))
         except (OSError, ValueError):
             continue
         msgs = [m.get("text") or "" for m in d.get("history", []) if m.get("text")]

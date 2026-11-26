@@ -25,6 +25,7 @@ Aradhya as a coding agent in your terminal. You tell her what you want in plain 
 - [Sessions](#sessions)
 - [Brains she can use](#brains-she-can-use)
 - [Her logo in different terminals](#her-logo-in-different-terminals)
+- [Symbols and text](#symbols-and-text)
 - [Settings](#settings)
 - [Troubleshooting](#troubleshooting)
 
@@ -272,18 +273,29 @@ ara --base-url https://any-openai-compatible/v1 --model name
 
 ## Her logo in different terminals
 
-On start she shows her logo. How it's drawn depends on what your terminal can do, and she works this out by asking the terminal itself, so you don't set anything up.
+She asks the terminal itself what it can draw (one quick question, answered by every terminal, so it works over SSH
+too), and picks the best she can:
 
 | Terminal | Logo |
 |---|---|
-| Windows Terminal 1.22 or newer | Sharp picture |
-| Termux | Sharp picture with `python-pillow` installed, if Termux reports its character size; block art otherwise (`ARA_CELL_PX` forces the picture) |
-| VS Code terminal | Sharp picture if "Terminal › Integrated: Enable Images" is on; block art otherwise |
-| WezTerm, iTerm2, Kitty, Ghostty, foot, Konsole, xterm (sixel builds) | Sharp picture |
-| Old Windows console, PowerShell ISE, other terminals | Block art made of coloured squares |
-| Terminals with only 16 colours, or no colour | Her name as text |
+| Windows Terminal 1.22 or newer, Termux, WezTerm, iTerm2, Kitty, Ghostty, foot, Konsole, mintty (Git Bash), xterm (sixel builds), VS Code with "Terminal › Integrated: Enable Images" on | Her real picture |
+| Inside tmux or screen | Her picture if tmux was built with sixel, coloured blocks otherwise |
+| Old Windows Terminal, Alacritty, Apple Terminal, VS Code without images, anything else with colour | Coloured block art of her |
+| Very narrow screens (under about 44 columns), or 16-colour terminals | Her name |
 
-The rest of the interface looks the same everywhere.
+The first time she draws a picture during setup, she asks whether you can see it. Say no and she uses the block art in
+that terminal from then on, so you never get an empty box.
+
+## Symbols and text
+
+- Everything is UTF-8: her output, your typing, and the commands she runs (PowerShell, Python and git are switched
+  to UTF-8 for her commands, so names like `வணக்கம்` or `café` come back intact). On Windows the console's code page
+  goes back to what it was when she exits.
+- Files keep their encoding and line endings when she edits them: a Windows file stays CRLF, a UTF-16 file from
+  PowerShell stays UTF-16, a file with a byte-order mark keeps it.
+- The classic Windows console window (with Consolas or Lucida Console) can't draw symbols like ✦ ⎿ ❯ ✓, so there she
+  swaps them for ones it has (♦ └ ► √) and keeps every border lined up. Windows Terminal, VS Code and other modern
+  terminals get the full set.
 
 ## Settings
 
@@ -297,7 +309,8 @@ Setup saves her settings in `~/.aradhya/config.json` (brain, model, your name, h
 | `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `NOUS_API_KEY`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`, `XAI_API_KEY`, `MISTRAL_API_KEY` | Keys, if you'd rather keep them in your environment |
 | `ARA_GOOGLE_CLIENT` | Path to a Google OAuth client file, instead of `ara login google --client` |
 | `ARA_NAME` | The name in the welcome message |
-| `ARA_LOGO` | Force the logo style: `sixel`, `kitty`, `iterm`, `blocks` or `off` |
+| `ARA_LOGO` | Force the logo style: `sixel`, `kitty`, `iterm`, `blocks` or `off`; `auto` ignores what setup saved |
+| `ARA_ASCII` | `1` for plain symbols (for fonts without ✦ ⎿ ❯), `0` to always use the fancy ones |
 | `ARA_CELL_PX` | Your terminal's character size in pixels, e.g. `10x21`, if the logo picture comes out the wrong size |
 | `ARA_HOME` | Where sessions, settings and history are kept (default `~/.aradhya`) |
 
@@ -311,11 +324,20 @@ Setup saves her settings in `~/.aradhya/config.json` (brain, model, your name, h
 
 **"Gemini didn't answer (busy or out of quota)"**: she already waited and tried other models. Wait a minute, try `/model gemini-3.8-flash`, or use your own key instead of a shared one.
 
-**Strange characters or colours on Windows**: use Windows Terminal (free in the Microsoft Store) rather than the old console window. Aradhya Code switches the console to UTF-8 by itself, so emoji and box lines shouldn't crash anything even in the old one.
+**Boxes or question marks instead of symbols**: you're in the classic Windows console with a font that lacks them. She
+normally notices and switches to plain symbols; if she didn't, set `ARA_ASCII=1`. Windows Terminal (free in the
+Microsoft Store) shows everything.
 
-**The logo picture is too big or too small**: set `ARA_CELL_PX`. Windows Terminal at default settings is about `10x21`; if you zoomed in, try `12x25`.
+**The logo picture is too big or too small**: your terminal didn't say how big its characters are, so she guessed.
+Set `ARA_CELL_PX` to the character size in pixels: Windows Terminal at default settings is about `10x21`; zoomed in or
+at 150% display scaling, try `15x31`.
 
-**A blank gap where the logo should be**: your terminal claims to support pictures but didn't draw one. Set `ARA_LOGO=blocks`.
+**A blank gap where the logo should be**: run `ara doctor`; it draws her picture and asks if you can see it. Or set
+`ARA_LOGO=blocks`.
+
+**Garbled accents or symbols in a command's output**: run `ara doctor` and check the Text line says `utf-8`. On
+Windows she runs commands in Windows PowerShell with UTF-8 switched on; programs that ignore that still show their
+own code page.
 
 **On Termux, the install fails while building `pydantic-core`**: you installed with `[full]`. Use the one-line installer, which leaves it out on Termux.
 

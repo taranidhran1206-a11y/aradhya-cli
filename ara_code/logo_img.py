@@ -1,123 +1,70 @@
 """Draw the real logo image in terminals that can show pictures; everything else uses the block art.
 
 Protocols:  kitty (Kitty, Ghostty) · iterm (iTerm2, WezTerm) · sixel (any terminal that says it supports it:
-Windows Terminal 1.22+, Termux, VS Code with images on, foot, mlterm, xterm -ti vt340, Konsole…).  Override with ARA_LOGO=kitty|iterm|sixel|blocks|off.
+Windows Terminal 1.22+, Termux, VS Code with images on, foot, mlterm, xterm -ti vt340, Konsole, mintty…).
+Override with ARA_LOGO=kitty|iterm|sixel|blocks|off; setup also asks once whether the picture showed up.
 """
 import base64
 import io
 import os
 import sys
-import time
 from pathlib import Path
 
 LOGO_PNG = Path(__file__).parent / "assets" / "logo.png"
 
 
-def detect():
-    """Pick how to draw the logo. Asks the terminal itself (DA1) whether it can draw sixel images, so it works
-    the same on Windows Terminal, Termux, VS Code, foot, xterm… without guessing from app names."""
-    forced = os.environ.get("ARA_LOGO", "").lower()
+def preference():
+    """ARA_LOGO, else what setup saved after asking whether the picture showed up ('picture' / 'blocks' / 'off')."""
+    forced = os.environ.get("ARA_LOGO", "").strip().lower()
     if forced:
         return forced
-    if not (sys.stdout.isatty() and sys.stdin.isatty()):
+    try:
+        from .engines import load_config
+        return (load_config().get("logo") or "").lower()
+    except Exception:
+        return ""
+
+
+def detect():
+    """How to draw her logo here: kitty, iterm or sixel pictures, or block art. It asks the terminal itself (one
+    round trip) whether it can draw sixel pictures and how big a character is, so it behaves the same on Windows
+    Terminal, Termux, VS Code, foot, mlterm, xterm, Konsole…"""
+    from . import termcaps
+    pref = preference()
+    if pref in ("kitty", "iterm", "sixel", "blocks", "off", "probe"):
+        return pref
+    if pref == "text":
+        return "blocks"
+    if not (sys.stdout.isatty() and sys.stdin.isatty()) or termcaps.plain_symbols():
         return "blocks"
     env = os.environ
-    prog = env.get("TERM_PROGRAM", "")
-    if env.get("KITTY_WINDOW_ID") or env.get("TERM", "") in ("xterm-kitty", "xterm-ghostty") or prog == "ghostty":
-        return "kitty"
-    if prog in ("iTerm.app", "WezTerm") or env.get("LC_TERMINAL") == "iTerm2":
-        return "iterm"
-    da1 = ask("\x1b[c", r"\x1b\[\?[\d;]*c")
-    if da1 and "4" in da1[3:-1].split(";"):
-        return "sixel" if cell_pixels() else "blocks"
+    if not termcaps.in_multiplexer():  # tmux/screen hide the outer terminal's picture support
+        prog = env.get("TERM_PROGRAM", "")
+        if env.get("KITTY_WINDOW_ID") or env.get("TERM", "") in ("xterm-kitty", "xterm-ghostty") or prog == "ghostty":
+            return "kitty"
+        if prog in ("iTerm.app", "WezTerm") or env.get("LC_TERMINAL") == "iTerm2":
+            return "iterm"
+    caps = termcaps.probe()
+    if caps["sixel"] and cell_pixels():
+        return "sixel"
     return "blocks"
 
 
-def ask(query, reply_re, timeout=0.25):
-    """Send a query to the terminal and read its answer (raw mode, short timeout). '' if it doesn't answer."""
-    import re
-    try:
-        if os.name == "nt":
-            return _ask_windows(query, reply_re, timeout)
-        import select
-        import termios
-        import tty
-        fd = sys.stdin.fileno()
-        old = termios.tcgetattr(fd)
-        try:
-            tty.setcbreak(fd)
-            sys.stdout.write(query)
-            sys.stdout.flush()
-            buf, end = "", time.time() + timeout
-            while time.time() < end and select.select([fd], [], [], max(0, end - time.time()))[0]:
-                buf += os.read(fd, 256).decode("latin-1")
-                m = re.search(reply_re, buf)
-                if m:
-                    return m.group(0)
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old)
-    except Exception:
-        pass
-    return ""
-
-
-def _ask_windows(query, reply_re, timeout):
-    import ctypes
-    import msvcrt
-    import re
-    k32 = ctypes.windll.kernel32
-    h = k32.GetStdHandle(-10)
-    mode = ctypes.c_uint()
-    if not k32.GetConsoleMode(h, ctypes.byref(mode)):
-        return ""
-    k32.SetConsoleMode(h, (mode.value | 0x0200) & ~0x0006)  # VT input on, line input + echo off
-    try:
-        sys.stdout.write(query)
-        sys.stdout.flush()
-        buf, end = "", time.time() + timeout
-        while time.time() < end:
-            if msvcrt.kbhit():
-                buf += msvcrt.getwch()
-                m = re.search(reply_re, buf)
-                if m:
-                    return m.group(0)
-            else:
-                time.sleep(0.005)
-        return ""
-    finally:
-        k32.SetConsoleMode(h, mode.value)
-
-
-_cell = None
-
-
 def cell_pixels():
-    """Size of one character cell in pixels, so the image fills exactly the space kept for it.
-    ARA_CELL_PX=WxH overrides. Otherwise ask the terminal (CSI 16 t, then CSI 14 t ÷ columns/rows).
-    Windows Terminal falls back to its default font size; anything else unknown → None (use block art)."""
-    global _cell
-    if _cell is not None:
-        return _cell or None
-    import re
-    v = os.environ.get("ARA_CELL_PX", "")
-    if "x" in v.lower():
-        w, h = v.lower().split("x")
-        _cell = (int(w), int(h))
-        return _cell
-    r = ask("\x1b[16t", r"\x1b\[6;\d+;\d+t")
-    m = re.search(r"\[6;(\d+);(\d+)t", r or "")
-    if m and int(m.group(1)) > 4:
-        _cell = (int(m.group(2)), int(m.group(1)))
-        return _cell
-    r = ask("\x1b[14t", r"\x1b\[4;\d+;\d+t")
-    m = re.search(r"\[4;(\d+);(\d+)t", r or "")
-    if m:
-        size = os.get_terminal_size()
-        _cell = (int(m.group(2)) // size.columns, int(m.group(1)) // size.lines)
-        if _cell[0] > 2 and _cell[1] > 4:
-            return _cell
-    _cell = (10, 21) if os.environ.get("WT_SESSION") else ()
-    return _cell or None
+    """Size of one character cell in pixels, so a sixel picture fills exactly the space kept for it.
+    ARA_CELL_PX=WxH overrides; otherwise the terminal's own answer; Windows Terminal falls back to its default font."""
+    v = os.environ.get("ARA_CELL_PX", "").lower()
+    if "x" in v:
+        try:
+            w, h = v.split("x")
+            return int(w), int(h)
+        except ValueError:
+            pass
+    from . import termcaps
+    cell = termcaps.probe()["cell"]
+    if cell:
+        return cell
+    return (10, 21) if os.environ.get("WT_SESSION") else None
 
 
 def _png_bytes():

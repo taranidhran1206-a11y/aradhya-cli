@@ -97,7 +97,7 @@ def all_skills(cwd):
             if any(part.startswith(".") for part in f.relative_to(root).parts[:-1]):
                 continue  # .trash and friends
             try:
-                meta, _ = parse(f.read_text("utf-8", "replace")[:6000])
+                meta, _ = parse(f.read_text("utf-8-sig", "replace")[:6000])
             except OSError:
                 continue
             name = (meta.get("name") or f.parent.name).strip()
@@ -153,8 +153,8 @@ def view(cwd, name, file_path=None):
         p = _inside(s.folder, file_path)
         if not p.is_file():
             return s, f"{file_path} isn't in {s.name}. Files: {', '.join(support_files(s)) or 'none'}"
-        return s, p.read_text("utf-8", "replace")[:40000]
-    text = s.path.read_text("utf-8", "replace")
+        return s, p.read_text("utf-8-sig", "replace")[:40000]
+    text = s.path.read_text("utf-8-sig", "replace")
     extra = support_files(s)
     if extra:
         text += "\n\n[Files in this skill (read with skill_view file_path=…): " + ", ".join(extra) + "]"
@@ -193,13 +193,13 @@ def manage(cwd, action, name, content=None, old_string=None, new_string=None, re
         root = project_dirs(cwd)[0] if scope == "project" else user_dir()
         path = root / name / "SKILL.md"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content.rstrip() + "\n", "utf-8")
+        path.write_bytes((content.replace("\r\n", "\n").rstrip() + "\n").encode("utf-8"))
         return True, f"Created skill '{name}' at {path}", {"new": content, "path": str(path)}
     if not existing:
         return False, f"No skill called '{name}'. Create it first.", {}
     if action == "patch":
         target = _inside(existing.folder, file_path) if file_path else existing.path
-        old_text = target.read_text("utf-8", "replace") if target.exists() else ""
+        old_text = target.read_text("utf-8-sig", "replace").replace("\r\n", "\n") if target.exists() else ""
         if content is not None and old_string is None:
             if target == existing.path:
                 problem = check_skill_md(name, content)
@@ -219,7 +219,7 @@ def manage(cwd, action, name, content=None, old_string=None, new_string=None, re
                 problem = check_skill_md(name, new_text)
                 if problem:
                     return False, "That would break the skill: " + problem, {}
-        target.write_text(new_text, "utf-8")
+        target.write_bytes(new_text.encode("utf-8"))
         from .tools import diff_text
         return True, f"Updated {name}/{target.relative_to(existing.folder).as_posix()}", \
             {"diff": diff_text(old_text, new_text, f"{name}/{target.name}")}
@@ -228,7 +228,7 @@ def manage(cwd, action, name, content=None, old_string=None, new_string=None, re
             return False, "write_file needs file_path (e.g. references/notes.md) and file_content.", {}
         target = _inside(existing.folder, file_path)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(file_content, "utf-8")
+        target.write_bytes(file_content.encode("utf-8"))
         return True, f"Wrote {name}/{file_path}", {"new": file_content, "path": str(target)}
     if action == "delete":
         trash = user_dir() / ".trash" / f"{name}-{time.strftime('%Y%m%d-%H%M%S')}"

@@ -222,7 +222,9 @@ class Spinner:
         self.console, self.text = console, text
 
     def __enter__(self):
-        self._status = self.console.status(Text(self.text, style=MUTED), spinner="dots", spinner_style=GOLD)
+        from .termcaps import plain_symbols
+        self._status = self.console.status(Text(self.text, style=MUTED), spinner="line" if plain_symbols() else "dots",
+                                           spinner_style=GOLD)
         self._status.__enter__()
         return self
 
@@ -626,7 +628,7 @@ def _local_status():
 def setup(ui, first_run=False):
     """`ara setup`. Returns True if she's ready to go."""
     if first_run:
-        ui.setup_card("Hi, I'm Aradhya ✨", ["Let's get me ready. It takes about a minute.",
+        ui.setup_card("Hi, I'm Aradhya", ["Let's get me ready. It takes about a minute.",
                                              "Esc goes back a step, Ctrl+C stops."])
     else:
         ui.setup_card("Let's set me up again", ["Esc goes back a step, Ctrl+C stops.",
@@ -634,8 +636,34 @@ def setup(ui, first_run=False):
     w = Wizard(ui)
     if not w.run():
         return False
+    try:
+        picture_check(ui)
+    except Cancelled:
+        pass
     summary(ui, w)
     return True
+
+
+def picture_check(ui, force=False):
+    """Terminals can claim to draw pictures and then not. Ask once, and remember the answer."""
+    from . import logo_img
+    if not force and (engines.load_config().get("logo") or os.environ.get("ARA_LOGO")):
+        return
+    if logo_img.detect() not in ("kitty", "iterm", "sixel"):
+        return
+    c = ui.console
+    c.print()
+    c.print(Text.assemble(("  ◆ ", GOLD), ("One last thing: can you see me just below?", "bold")))
+    c.print()
+    if not ui.show_picture(12):
+        return
+    r = pick([{"label": "Yes, I can see you"},
+              {"label": "No, just an empty space", "hint": "I'll draw myself with coloured blocks instead"}])
+    if r == 1:
+        engines.save_config(logo="blocks")
+        c.print(Text("  ✓ Got it. I'll use blocks in this terminal from now on.", style=GREEN))
+    elif r == 0:
+        engines.save_config(logo="picture")
 
 
 def summary(ui, w):
@@ -863,9 +891,22 @@ def doctor(ui):
         cl = login.google_client()
         line(True if cl else None, "Google client", (f"project {cl.get('project_id') or '?'}" if cl else "none"),
              "Only needed for Google sign-in: ara login google --client client_secret.json")
-    from . import logo_img
+    from . import logo_img, termcaps
     kind = logo_img.detect() if sys.stdout.isatty() else "not a terminal"
-    line(True, "Terminal", f"{c.width} columns · {c.color_system or 'no'} colour · logo: {kind}")
+    how = {"kitty": "picture (kitty)", "iterm": "picture (iTerm)", "sixel": "picture (sixel)",
+           "blocks": "coloured blocks", "off": "off"}.get(kind, kind)
+    cell = logo_img.cell_pixels() if kind == "sixel" else None
+    line(True, "Terminal", f"{c.width} columns · {c.color_system or 'no'} colour · logo: {how}"
+         + (f" · cell {cell[0]}x{cell[1]}px" if cell else ""))
+    enc = (getattr(sys.stdout, "encoding", "") or "?").lower()
+    line(True if "utf" in enc else None, "Text", f"{enc}" + (" · plain symbols (this console's font can't draw "
+                                                             "✦ ✓ ❯, so she uses ones it can)" if termcaps.plain_symbols() else ""),
+         "Use Windows Terminal (or set ARA_ASCII=0 if your font has the symbols)")
+    if kind in ("kitty", "iterm", "sixel") and sys.stdout.isatty():
+        try:
+            picture_check(ui, force=True)
+        except Cancelled:
+            pass
     c.print()
     c.print(Text("  Everything looks good ✨\n" if not bad else f"  {bad} thing{'s' if bad > 1 else ''} to fix above.\n",
                  style=GOLD if not bad else RED))

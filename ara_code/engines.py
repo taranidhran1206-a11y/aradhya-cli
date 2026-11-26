@@ -104,7 +104,7 @@ def get(engine_id):
 
 def _read(path):
     try:
-        return json.loads(path.read_text("utf-8"))
+        return json.loads(path.read_text("utf-8-sig"))
     except (OSError, ValueError):
         return {}
 

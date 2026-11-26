@@ -71,9 +71,15 @@ def md(text):
     return MD(text, code_theme="monokai", hyperlinks=True)
 
 
+def logo_size(size):
+    """The biggest block-art logo that fits in `size` columns (0 if even the smallest doesn't)."""
+    fits = [k for k in LOGO if k <= size]
+    return max(fits) if fits else 0
+
+
 def logo_text(size):
     out = []
-    for row in LOGO[size]:
+    for row in LOGO[logo_size(size)]:
         t = Text()
         for i in range(0, len(row), 12):
             top, bot = row[i:i + 6], row[i + 6:i + 12]
@@ -232,6 +238,7 @@ class TerminalUI:
         self._tool = None
         self.esc = EscWatcher()
         self.name = os.environ.get("ARA_NAME") or _saved_name()
+        self.picture = ""
 
     @property
     def accent(self):
@@ -289,6 +296,7 @@ class TerminalUI:
         rich_color = self.console.color_system in ("truecolor", "256")
         if not rich_color:  # 16-colour or no-colour terminal: the picture would be mush, use a wordmark
             size = 0
+        size = logo_size(size)
         from . import logo_img
         kind = logo_img.detect() if rich_color else "blocks"
         image = logo_img.render(kind, size, size // 2) if size and kind not in ("blocks", "off") else ""
@@ -300,10 +308,29 @@ class TerminalUI:
 
     def _print_with_logo(self, panel, art, image):
         if image:
+            try:
+                rows = os.get_terminal_size().lines
+                height = len(self.console.render_lines(panel, self.console.options, pad=False))
+            except (OSError, ValueError):
+                rows, height = 0, 0
+            if not rows or height >= rows - 1:  # it would scroll off the top before she's drawn: use block art
+                for t, row in zip(art, logo_text(len(art) * 2)):
+                    t.plain = ""
+                    t.append_text(row)
+                image = ""
+        self.picture = ""
+        if image:
             spot = self._find_spot(panel)
+            if not spot:  # couldn't find where she goes: block art rather than a blank gap
+                for t, row in zip(art, logo_text(len(art) * 2)):
+                    t.plain = ""
+                    t.append_text(row)
+                self.console.print(panel)
+                return
             for t in art:  # print plain spaces: marker glyphs would show through her transparent parts
                 t.plain = " " * len(t.plain)
             self.console.print(panel)
+            self.picture = "yes"
             if spot:
                 up, col = spot
                 self.console.file.write(f"\x1b7\x1b[{up}A\x1b[{col + 1}G{image}\x1b8")
@@ -311,10 +338,22 @@ class TerminalUI:
         else:
             self.console.print(panel)
 
+    def show_picture(self, size=12):
+        """Draw just her picture, indented, for the 'can you see me?' check. True if a picture was drawn."""
+        art, image = self._logo(size)
+        if not image:
+            return False
+        grid = Table.grid()
+        grid.add_column(width=4)
+        grid.add_column()
+        grid.add_row("", Group(*art))
+        self._print_with_logo(grid, art, image)
+        return bool(self.picture)
+
     def setup_card(self, heading, lines, title="setup"):
         """The card at the top of setup: her logo on the left, a few lines from her on the right."""
         w = self.console.width
-        size = 16 if w >= 70 else 12 if w >= 50 else 0
+        size = 16 if w >= 70 else 12 if w >= 44 else 0
         head = Text.assemble((" ✦ ", self.accent), ("Aradhya Code", f"bold {self.accent}"), (f" · {title} ", MUTED))
         words = [Text(heading, style="bold"), Text("")] + [Text(l, style=MUTED) if isinstance(l, str) else l
                                                            for l in lines]

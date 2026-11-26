@@ -6,7 +6,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import urllib.request
 from pathlib import Path
 
@@ -127,6 +126,79 @@ READ_ONLY = {"read_file", "list_files", "grep", "web_fetch", "todo_write", "skil
 EDIT_TOOLS = {"write_file", "edit_file"}
 
 
+class TextFile:
+    """A text file as she read it: its encoding, byte-order mark and line endings are kept when she writes it back,
+    so editing a Windows file doesn't flip it to Unix line endings (or the other way round)."""
+
+    BOMS = [(b"\xef\xbb\xbf", "utf-8"), (b"\xff\xfe\x00\x00", "utf-32-le"), (b"\x00\x00\xfe\xff", "utf-32-be"),
+            (b"\xff\xfe", "utf-16-le"), (b"\xfe\xff", "utf-16-be")]
+
+    def __init__(self, text="", encoding="utf-8", bom=b"", eol="\n"):
+        self.text, self.encoding, self.bom, self.eol = text, encoding, bom, eol
+
+    @classmethod
+    def read(cls, path):
+        """Returns a TextFile with \n line endings in .text, or None if it looks binary."""
+        raw = Path(path).read_bytes()
+        enc, bom = None, b""
+        for mark, name in cls.BOMS:
+            if raw.startswith(mark):
+                enc, bom = name, mark
+                break
+        if enc is None and len(raw) > 3 and raw[1:4:2] == b"\x00\x00" and raw[0:3:2] != b"\x00\x00":
+            enc = "utf-16-le"  # UTF-16 without a mark (some PowerShell output)
+        if enc is None:
+            if b"\x00" in raw[:4096]:
+                return None
+            try:
+                text = raw.decode("utf-8")
+                enc = "utf-8"
+            except UnicodeDecodeError:
+                try:
+                    text, enc = raw.decode("cp1252"), "cp1252"  # older Windows files
+                except UnicodeDecodeError:
+                    text, enc = raw.decode("latin-1"), "latin-1"
+        else:
+            text = raw[len(bom):].decode(enc, "replace")
+        crlf = text.count("\r\n")
+        eol = "\r\n" if crlf and crlf >= (text.count("\n") - crlf) else "\n"
+        return cls(text.replace("\r\n", "\n"), enc, bom, eol)
+
+    def write(self, path, text):
+        data = text.replace("\r\n", "\n")
+        if self.eol != "\n":
+            data = data.replace("\n", self.eol)
+        try:
+            body = data.encode(self.encoding)
+        except UnicodeEncodeError:  # a new character the old encoding can't hold: switch to UTF-8
+            body, self.encoding, self.bom = data.encode("utf-8"), "utf-8", b""
+        Path(path).write_bytes(self.bom + body)
+
+
+def child_env():
+    """Environment for commands she runs: UTF-8 from Python and git, whatever the system's code page."""
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1", LESSCHARSET="utf-8")
+    try:
+        n = int(env.get("GIT_CONFIG_COUNT", "0") or 0)
+    except ValueError:
+        n = 0
+    env.update({"GIT_CONFIG_COUNT": str(n + 1), f"GIT_CONFIG_KEY_{n}": "core.quotepath",
+                f"GIT_CONFIG_VALUE_{n}": "off"})  # show non-English file names as they are
+    return env
+
+
+PS_UTF8 = ("$ProgressPreference='SilentlyContinue'; "
+           "try { [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false) } catch {}; "
+           "$OutputEncoding=[Text.UTF8Encoding]::new($false); ")
+
+
+def decode_output(data):
+    if isinstance(data, str):
+        return data
+    text = (data or b"").decode("utf-8", "replace")
+    return text[1:] if text.startswith("\ufeff") else text
+
+
 class ToolResult:
     def __init__(self, output, ok=True, summary="", stop=False, display=None):
         self.output, self.ok, self.summary, self.stop = output, ok, summary, stop
@@ -232,10 +304,10 @@ class ToolBox:
             return ToolResult(f"{path} is a folder. Use list_files.", ok=False, summary="Is a folder")
         if not p.exists():
             return ToolResult(f"File not found: {path}", ok=False, summary="Not found")
-        raw = p.read_bytes()
-        if b"\x00" in raw[:4096]:
-            return ToolResult(f"{path} looks binary ({len(raw)} bytes).", ok=False, summary="Binary file")
-        lines = raw.decode("utf-8", "replace").splitlines()
+        tf = TextFile.read(p)
+        if tf is None:
+            return ToolResult(f"{path} looks binary ({p.stat().st_size} bytes).", ok=False, summary="Binary file")
+        lines = tf.text.splitlines()
         start = max(1, int(offset or 1))
         n = int(limit or 2000)
         chunk = lines[start - 1:start - 1 + n]
@@ -246,7 +318,10 @@ class ToolBox:
 
     def t_write_file(self, path, content):
         p = self._path(path)
-        old = p.read_text("utf-8", "replace") if p.exists() else None
+        tf = TextFile.read(p) if p.exists() else TextFile()
+        old = (tf.text if tf is not None else "") if p.exists() else None
+        tf = tf or TextFile()
+        content = content.replace("\r\n", "\n")
         if old is not None and str(p) not in self.read_paths:
             return ToolResult(f"{path} already exists. Read it first, then write.", ok=False,
                               summary="Read it first")
@@ -256,7 +331,7 @@ class ToolBox:
         if not ok:
             return self._denied(fb)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content, "utf-8")
+        tf.write(p, content)
         self.read_paths.add(str(p))
         n = content.count("\n") + (0 if content.endswith("\n") or not content else 1)
         return ToolResult(f"Wrote {n} lines to {self._rel(p)}",
@@ -269,7 +344,11 @@ class ToolBox:
             return ToolResult(f"File not found: {path}", ok=False, summary="Not found")
         if str(p) not in self.read_paths:
             return ToolResult(f"Read {path} before editing it.", ok=False, summary="Read it first")
-        old = p.read_text("utf-8", "replace")
+        tf = TextFile.read(p)
+        if tf is None:
+            return ToolResult(f"{path} looks binary; it can't be edited as text.", ok=False, summary="Binary file")
+        old = tf.text
+        old_string, new_string = old_string.replace("\r\n", "\n"), new_string.replace("\r\n", "\n")
         if old_string == new_string:
             return ToolResult("old_string and new_string are the same.", ok=False, summary="No change")
         count = old.count(old_string)
@@ -284,7 +363,7 @@ class ToolBox:
         ok, fb = self._permit("edit_file", "Edit " + self._rel(p), {"kind": "diff", "text": d, "path": self._rel(p)})
         if not ok:
             return self._denied(fb)
-        p.write_text(new, "utf-8")
+        tf.write(p, new)
         added = sum(1 for l in d.splitlines() if l.startswith("+") and not l.startswith("+++"))
         removed = sum(1 for l in d.splitlines() if l.startswith("-") and not l.startswith("---"))
         return ToolResult(f"Edited {self._rel(p)}:\n{d}",
@@ -316,7 +395,7 @@ class ToolBox:
             if glob:
                 cmd += ["-g", glob]
             cmd += ["-e", pattern, str(base)]
-            r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+            r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
             lines = [self._rel_line(l) for l in r.stdout.splitlines()]
         else:
             flags = re.I if ignore_case else 0
@@ -353,25 +432,26 @@ class ToolBox:
         timeout = max(1, min(int(timeout or 120), 600))
         marker = "__ARA_CWD__"
         if os.name == "nt":
-            args = ["powershell", "-NoProfile", "-Command", f"{command}; echo '{marker}'; (Get-Location).Path"]
+            args = ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                    f"{PS_UTF8}{command}; echo '{marker}'; (Get-Location).Path"]
         else:
             shell = shutil.which("bash") or "/bin/sh"
             args = [shell, "-c", f"{command}\n__ara_rc=$?; echo '{marker}'; pwd; exit $__ara_rc"]
         try:
-            r = subprocess.run(args, cwd=self.cwd, capture_output=True, text=True, errors="replace",
-                               timeout=timeout, stdin=subprocess.DEVNULL)
+            r = subprocess.run(args, cwd=self.cwd, capture_output=True, timeout=timeout, stdin=subprocess.DEVNULL,
+                               env=child_env())
         except subprocess.TimeoutExpired as e:
-            out = (e.stdout or "") if isinstance(e.stdout, str) else ""
+            out = decode_output(e.stdout)
             return ToolResult(f"Timed out after {timeout}s.\n{out[-MAX_OUTPUT:]}", ok=False, summary=f"Timed out ({timeout}s)")
-        stdout = r.stdout
+        stdout, stderr = decode_output(r.stdout), decode_output(r.stderr)
         if marker in stdout:
             stdout, _, tail = stdout.rpartition(marker)
             newdir = tail.strip().splitlines()[-1] if tail.strip() else ""
             if newdir and Path(newdir).is_dir():
                 self.cwd = Path(newdir).resolve()
-        text = stdout.rstrip()
-        if r.stderr.strip():
-            text += ("\n" if text else "") + r.stderr.rstrip()
+        text = stdout.replace("\r\n", "\n").rstrip()
+        if stderr.strip():
+            text += ("\n" if text else "") + stderr.replace("\r\n", "\n").rstrip()
         if len(text) > MAX_OUTPUT:
             text = text[:MAX_OUTPUT // 2] + f"\n… [{len(text) - MAX_OUTPUT} chars cut] …\n" + text[-MAX_OUTPUT // 2:]
         code = r.returncode

@@ -33,11 +33,11 @@ RULES = """
 def git_info(cwd):
     try:
         branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=cwd, capture_output=True,
-                                text=True, timeout=5).stdout.strip()
+                                text=True, encoding="utf-8", errors="replace", timeout=5).stdout.strip()
         if not branch:
             return "not a git repo"
         status = subprocess.run(["git", "status", "--short"], cwd=cwd, capture_output=True, text=True,
-                                timeout=5).stdout.strip().splitlines()
+                                encoding="utf-8", errors="replace", timeout=5).stdout.strip().splitlines()
         return f"branch {branch}, {len(status)} changed file{'s' * (len(status) != 1)}"
     except Exception:
         return "not a git repo"
@@ -62,7 +62,7 @@ def project_memory(cwd):
     parts = []
     for f in found:
         try:
-            parts.append(f"## From {f}\n{f.read_text('utf-8', 'replace')[:20000]}")
+            parts.append(f"## From {f}\n{f.read_text('utf-8-sig', 'replace')[:20000]}")
         except OSError:
             pass
     return parts
