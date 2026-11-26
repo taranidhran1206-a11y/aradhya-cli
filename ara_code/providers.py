@@ -335,7 +335,7 @@ class OpenAIProvider:
 class ScriptedProvider:
     """Replays canned turns. Each turn is a list of events; used by the test suite."""
     name = "scripted"
-    model = "scripted"
+    model = os.environ.get("ARA_SCRIPT_MODEL", "scripted")  # what demos show as the model name
 
     def __init__(self, turns):
         self.turns = list(turns)

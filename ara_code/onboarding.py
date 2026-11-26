@@ -644,7 +644,7 @@ def setup(ui, first_run=False):
     return True
 
 
-def picture_check(ui, force=False):
+def picture_check(ui, force=False, question="One last thing: can you see me just below?"):
     """Terminals can claim to draw pictures and then not. Ask once, and remember the answer."""
     from . import logo_img
     if not force and (engines.load_config().get("logo") or os.environ.get("ARA_LOGO")):
@@ -653,7 +653,7 @@ def picture_check(ui, force=False):
         return
     c = ui.console
     c.print()
-    c.print(Text.assemble(("  ◆ ", GOLD), ("One last thing: can you see me just below?", "bold")))
+    c.print(Text.assemble(("  ◆ ", GOLD), (question, "bold")))
     c.print()
     if not ui.show_picture(12):
         return
@@ -904,7 +904,7 @@ def doctor(ui):
          "Use Windows Terminal (or set ARA_ASCII=0 if your font has the symbols)")
     if kind in ("kitty", "iterm", "sixel") and sys.stdout.isatty():
         try:
-            picture_check(ui, force=True)
+            picture_check(ui, force=True, question="Can you see her picture just below?")
         except Cancelled:
             pass
     c.print()
