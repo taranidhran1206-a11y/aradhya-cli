@@ -137,13 +137,37 @@
   .more p { color: #C9CCDB; font-size: 14px; margin: 0 0 16px; }
   .more .snip { margin-bottom: 18px; white-space: pre-wrap; word-break: break-all; }
 
+  /* real screenshots, framed like the terminal above */
+  .shot { margin: 0; }
+  .shot .term-in img { display: block; width: 100%; height: auto; }
+  .shot.wide { margin-top: 44px; }
+  .brains h3:first-child { margin-top: 6px; }
+  .shot figcaption { color: var(--mist); font-size: 12.5px; margin-top: 14px; }
+  .split { display: grid; grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr); gap: 56px; align-items: start; }
+  .split.flip { grid-template-columns: minmax(0, 1.18fr) minmax(0, 0.82fr); }
+  .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+  .steps li { counter-increment: step; position: relative; padding: 0 0 26px 46px; }
+  .steps li::before { content: counter(step); position: absolute; left: 0; top: 1px; width: 28px; height: 28px; border-radius: 50%;
+                      border: 1px solid var(--gold); color: var(--gold); font-size: 12.5px; display: grid; place-items: center; }
+  .steps h3, .cards h3 { font: 500 15.5px/1.4 var(--mono); font-stretch: 87.5%; margin: 0 0 6px; color: var(--gold); }
+  .steps p, .cards p, .brains p { margin: 0; color: #C9CCDB; font-size: 14px; }
+  .sticky { position: sticky; top: 24px; }
+  .brains { margin: 0 0 28px; }
+  .brains h3 { font: 400 12.5px var(--mono); color: var(--mist); margin: 22px 0 10px; letter-spacing: 0.02em; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips span { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 5px 13px; font-size: 13px; }
+  .chips span.signin { border-color: rgba(232, 181, 91, 0.55); }
+  .cards { display: grid; grid-template-columns: 1fr; gap: 26px; }
+  .cards .snip { margin-top: 12px; font-size: 11.5px; }
+
   footer { border-top: 1px solid var(--line); padding: 40px 0 56px; color: var(--mist); font-size: 13px; display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
   footer .who { display: flex; align-items: center; gap: 10px; }
   footer img { width: 22px; height: 22px; }
 
   @media (max-width: 960px) {
     .hero { grid-template-columns: 1fr; gap: 48px; padding-top: 24px; }
-    .flow, .keys, .where { grid-template-columns: 1fr; }
+    .flow, .keys, .where, .split, .split.flip { grid-template-columns: 1fr; }
+    .sticky { position: static; }
     .flow { gap: 36px; }
     .screen { height: 470px; }
   }
@@ -165,6 +189,8 @@
     <a class="brand" href="./"><img src="assets/logo.png" alt=""> Aradhya Code</a>
     <nav aria-label="Main">
       <a href="#how">How she works</a>
+      <a href="#setup">Setup</a>
+      <a href="#learns">She learns</a>
       <a href="#keys">Commands</a>
       <a href="#where">Where it runs</a>
       <a class="gh" href="https://github.com/taranidhran1206-a11y/unknown-project">GitHub</a>
@@ -200,35 +226,71 @@
     </div>
 
     <section id="how">
-      <h2>How a session goes</h2>
-      <p class="intro">Every action shows up as one line you can follow. Nothing on your machine changes until you say yes, unless you tell her not to ask.</p>
-      <div class="flow">
-        <div>
-          <h3>She looks before she touches</h3>
-          <p>She searches and reads the files that matter first. Reading never needs your permission; changing always does.</p>
-<div class="snip"><span class="ok">●</span> <span class="w">Grep</span>("def add")
-  <span class="m">⎿  Found 1 match in 1 file</span>
-<span class="ok">●</span> <span class="w">Read</span>(calc.py)
-  <span class="m">⎿  Read 6 lines</span></div>
+      <div class="split">
+        <div class="sticky">
+          <h2>How a session goes</h2>
+          <p class="intro">Every action shows up as one line you can follow. Nothing on your machine changes until you say yes, unless you tell her not to ask. This is a real session: a failing test, fixed.</p>
+          <ol class="steps">
+            <li><h3>She checks her playbook</h3><p>If she has a skill for the job, like fixing a failing test, she loads it and follows it.</p></li>
+            <li><h3>She looks before she touches</h3><p>She runs the test to see it fail, then searches and reads the code that matters. Reading never needs your permission.</p></li>
+            <li><h3>She shows you the change</h3><p>Edits arrive as a diff: red comes out, green goes in. Say yes once, yes for the session, or no and tell her what to do instead.</p></li>
+            <li><h3>She proves it worked</h3><p>She runs the test again, then tells you in a sentence what was wrong. Anything worth knowing next time, she remembers.</p></li>
+          </ol>
         </div>
+        <figure class="shot">
+          <div class="term"><div class="term-in">
+            <div class="term-top"><i></i><i></i><i></i><span>~/projects/calc · ara</span></div>
+            <img src="assets/shots/session.webp" width="1280" height="2153" loading="lazy"
+                 alt="Aradhya Code fixing a failing test: she loads her fix-failing-test skill, runs the test and sees it fail, finds add() in calc.py, changes a - b to a + b, runs the test again (2 passed) and remembers how the project runs its tests.">
+          </div></div>
+        </figure>
+      </div>
+    </section>
+
+    <section id="setup">
+      <div class="split">
         <div>
-          <h3>She shows you the change</h3>
-          <p>Edits arrive as a diff: red comes out, green goes in. Pick yes once, yes for the whole session, or no and tell her what to do instead.</p>
-<div class="snip"><span class="b">Edit file</span>  calc.py
-<span class="diff del">   2 -     return a - b    </span>
-<span class="diff add">   2 +     return a + b    </span>
-<span class="b">❯ 1. Yes</span>
-  2. Yes, allow all edits
-  3. No, and tell Aradhya…</div>
+          <h2>Set up in a minute</h2>
+          <p class="intro">The first time you run her, she asks your name, which brain to think with, signs you in or takes a key, lists the models that brain really has, and says hello to prove it works. <kbd>Esc</kbd> goes back a step.</p>
+          <p class="note">On a server over SSH there's no browser, so she prints the sign-in link: open it on your phone and paste back what you get. Switch any time with <code>ara model</code>, or <code>/model</code> mid-session.</p>
         </div>
+        <div class="brains">
+          <h3>Sign in with your browser</h3>
+          <div class="chips"><span class="signin">Google Gemini</span><span class="signin">OpenRouter: Claude, GPT, Llama, Hermes and 300+ more</span></div>
+          <h3>Paste a key</h3>
+          <div class="chips"><span>Gemini</span><span>OpenAI</span><span>Anthropic</span><span>Nous Portal</span><span>Groq</span><span>DeepSeek</span><span>xAI</span><span>Mistral</span></div>
+          <h3>On your machine or server</h3>
+          <div class="chips"><span>Ollama</span><span>LM Studio</span><span>Hermes Agent</span><span>Anything OpenAI-compatible</span></div>
+        </div>
+      </div>
+      <figure class="shot wide">
+        <div class="term"><div class="term-in">
+          <div class="term-top"><i></i><i></i><i></i><span>ara setup</span></div>
+          <img src="assets/shots/setup.webp" width="2056" height="1568" loading="lazy"
+               alt="The setup screen: her picture and greeting, then a list of brains to choose from, grouped into sign in with your browser, paste a key, and on your machine or server. Ollama is marked as running.">
+        </div></div>
+      </figure>
+    </section>
+
+    <section id="learns">
+      <div class="split">
         <div>
-          <h3>She proves it worked</h3>
-          <p>She runs your tests, the build or the script, fixes what she broke, then tells you in a sentence or two what was wrong.</p>
-<div class="snip"><span class="ok">●</span> <span class="w">Bash</span>(python test_calc.py)
-  <span class="m">⎿  3 passed in 0.01s</span>
-<span class="w">●</span> Fixed. calc.py:2 was
-  <span class="g">subtracting</span> instead of adding.</div>
+          <h2>She gets better as you work</h2>
+          <p class="intro">She remembers you, keeps playbooks for jobs she's done, and fixes them when they turn out wrong.</p>
+          <div class="cards">
+            <div><h3>Skills</h3><p>Playbooks for recurring jobs. She loads the right one when a task fits, and after a hard task she writes a new one. Type <code>/learn</code> to ask, or <code>/code-review</code> to run one.</p></div>
+            <div><h3>Memory</h3><p>Two short notebooks that go into every conversation: what she knows about you, and her notes on your setup. She saves to them herself; <code>/memory</code> shows them.</p></div>
+            <div><h3>Soul</h3><p>Who she is lives in <code>~/.aradhya/SOUL.md</code>. Change it however you like with <code>/soul edit</code>. Leo has his own.</p></div>
+            <div><h3>Helpers and recall</h3><p>Big side jobs go to a helper agent that starts fresh and reports back. Say "like last time" and she searches your earlier sessions.</p></div>
+          </div>
         </div>
+        <figure class="shot">
+          <div class="term"><div class="term-in">
+            <div class="term-top"><i></i><i></i><i></i><span>/skills · /memory</span></div>
+            <img src="assets/shots/learning.webp" width="1280" height="757" loading="lazy"
+                 alt="Her skills (code-review, commit-message, fix-failing-test, skill-authoring) and what she remembers: that Tarani likes short explanations and pytest over unittest, and how the calc project runs its tests.">
+          </div></div>
+        </figure>
       </div>
     </section>
 
@@ -241,9 +303,11 @@
           <div><dt>ara "fix the test"</dt><dd>Start with a request</dd></div>
           <div><dt>ara -c</dt><dd>Continue your last session here</dd></div>
           <div><dt>ara -p "…"</dt><dd>Answer once and exit, for scripts</dd></div>
+          <div><dt>ara setup</dt><dd>Set her up again: your name, her brain, how careful she is</dd></div>
           <div><dt>ara model</dt><dd>Switch her brain or model; <code>/model</code> does it mid-session</dd></div>
           <div><dt>ara login</dt><dd>Sign in with Google or OpenRouter, or save a key</dd></div>
           <div><dt>ara doctor</dt><dd>Check everything works, with a fix for anything that doesn't</dd></div>
+          <div><dt>/skills</dt><dd>Her playbooks; <code>/&lt;name&gt;</code> runs one</dd></div>
           <div><dt>/learn</dt><dd>Save how she just did something as a skill she'll follow next time</dd></div>
           <div><dt>/soul edit</dt><dd>Change who she is: her personality lives in SOUL.md</dd></div>
           <div><dt>/init</dt><dd>She explores the project and writes ARADHYA.md, her notes for next time</dd></div>
@@ -265,7 +329,7 @@
       <div class="where">
         <div>
           <h2>Where it runs</h2>
-          <p class="intro">The same interface everywhere. Her logo is a real picture where the terminal can draw one, and block art where it can't; she asks the terminal which.</p>
+          <p class="intro">The same interface everywhere. She asks the terminal what it can draw: her real picture where it can, colour blocks where it can't, and plainer symbols in the old Windows console. Text is UTF-8 throughout, and files keep their own encoding and line endings when she edits them.</p>
           <ul>
             <li><span>Windows Terminal, PowerShell</span><span>Windows 10 and 11</span></li>
             <li><span>Terminal, iTerm2, WezTerm, Kitty</span><span>macOS</span></li>
@@ -275,11 +339,16 @@
           </ul>
         </div>
         <div class="more">
-          <h2>Her brain</h2>
-          <p>The first time you run her, she sets herself up: your name, which brain she thinks with, signing in, the model, and a quick hello to prove it works. Sign in with Google or OpenRouter in your browser, paste a key for OpenAI, Anthropic, Gemini, Nous Portal, Groq, DeepSeek, xAI or Mistral, or point her at Ollama, LM Studio or your own Hermes Agent.</p>
-<div class="snip">ara model</div>
-          <p>She gets better as you work: she remembers you and your setup between sessions, keeps skills (playbooks) for jobs she's done and fixes them when they're wrong, finds things from earlier conversations, and hands big side jobs to a helper agent.</p>
-          <p>Run the install command again to update. To remove her, run it with <code>ARA_UNINSTALL=1</code>; your sessions, settings and sign-ins stay in <code>~/.aradhya</code> until you delete that folder.</p>
+          <h2>When something's off</h2>
+          <p><code>ara doctor</code> checks Python, her packages, the connection (it asks her a quick question) and your terminal, and says how to fix anything that isn't right. It also shows you her picture, so a terminal that can't draw it switches to blocks for good.</p>
+          <figure class="shot">
+            <div class="term"><div class="term-in">
+              <div class="term-top"><i></i><i></i><i></i><span>ara doctor</span></div>
+              <img src="assets/shots/doctor.webp" width="1280" height="887" loading="lazy"
+                   alt="ara doctor: green ticks for Python, the ara command, packages, her folder, the brain, the connection, the terminal and UTF-8 text, then her picture and 'Everything looks good'.">
+            </div></div>
+          </figure>
+          <p style="margin-top:22px">Run the install command again to update. To remove her, run it with <code>ARA_UNINSTALL=1</code>; your sessions, settings and sign-ins stay in <code>~/.aradhya</code> until you delete that folder.</p>
           <p><a href="https://github.com/taranidhran1206-a11y/unknown-project#readme">Read the full guide</a></p>
         </div>
       </div>
