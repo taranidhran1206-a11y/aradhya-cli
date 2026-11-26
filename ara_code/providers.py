@@ -285,7 +285,7 @@ class OpenAIProvider:
             body["max_tokens"] = 16000
         headers = {"Content-Type": "application/json", "Authorization": "Bearer " + self.key}
         if "openrouter.ai" in self.base:  # shows up as "Aradhya Code" in your OpenRouter activity
-            headers.update({"HTTP-Referer": "https://taranidhran1206-a11y.github.io/unknown-project/",
+            headers.update({"HTTP-Referer": "https://taranidhran1206-a11y.github.io/aradhya-cli/",
                             "X-Title": "Aradhya Code"})
         req = urllib.request.Request(self.base + "/chat/completions", data=json.dumps(body).encode(), headers=headers)
         try:

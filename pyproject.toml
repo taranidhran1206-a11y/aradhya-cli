@@ -15,8 +15,8 @@ dependencies = ["rich>=13", "prompt_toolkit>=3"]
 full = ["google-genai>=1.20", "pillow>=10"]
 
 [project.urls]
-Homepage = "https://taranidhran1206-a11y.github.io/unknown-project/"
-Source = "https://github.com/taranidhran1206-a11y/unknown-project"
+Homepage = "https://taranidhran1206-a11y.github.io/aradhya-cli/"
+Source = "https://github.com/taranidhran1206-a11y/aradhya-cli"
 
 [project.scripts]
 ara = "ara_code.cli:main"

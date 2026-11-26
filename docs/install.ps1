@@ -1,6 +1,6 @@
 # Aradhya Code installer for Windows (PowerShell 5.1 or 7).
 #
-#   irm https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/taranidhran1206-a11y/aradhya-cli/main/docs/install.ps1 | iex
 #
 # Installs into its own folder (%USERPROFILE%\.aradhya\venv), so it never touches your other Python projects,
 # and adds the `ara` command to your PATH. Run it again any time to update.
@@ -14,7 +14,7 @@
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$RepoZip = "https://github.com/taranidhran1206-a11y/unknown-project/archive/refs/heads/main.zip"
+$RepoZip = "https://github.com/taranidhran1206-a11y/aradhya-cli/archive/refs/heads/main.zip"
 $Source  = if ($env:ARA_SOURCE) { $env:ARA_SOURCE } else { $RepoZip }
 $HomeDir = if ($env:ARA_HOME) { $env:ARA_HOME } else { Join-Path $HOME ".aradhya" }
 $Venv    = Join-Path $HomeDir "venv"

@@ -7,7 +7,7 @@
 <meta name="description" content="Aradhya reads your project, shows you every change before she makes it, and runs the tests to prove it worked. One command to install on Windows, macOS, Linux and Termux.">
 <meta property="og:title" content="Aradhya Code">
 <meta property="og:description" content="A coding agent in your terminal. Install with one command on Windows, macOS, Linux and Termux.">
-<meta property="og:image" content="https://taranidhran1206-a11y.github.io/unknown-project/assets/og.png">
+<meta property="og:image" content="https://taranidhran1206-a11y.github.io/aradhya-cli/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="600">
 <meta name="twitter:card" content="summary_large_image">
@@ -193,7 +193,7 @@
       <a href="#learns">She learns</a>
       <a href="#keys">Commands</a>
       <a href="#where">Where it runs</a>
-      <a class="gh" href="https://github.com/taranidhran1206-a11y/unknown-project">GitHub</a>
+      <a class="gh" href="https://github.com/taranidhran1206-a11y/aradhya-cli">GitHub</a>
     </nav>
   </header>
 
@@ -349,7 +349,7 @@
             </div></div>
           </figure>
           <p style="margin-top:22px">Run the install command again to update. To remove her, run it with <code>ARA_UNINSTALL=1</code>; your sessions, settings and sign-ins stay in <code>~/.aradhya</code> until you delete that folder.</p>
-          <p><a href="https://github.com/taranidhran1206-a11y/unknown-project#readme">Read the full guide</a></p>
+          <p><a href="https://github.com/taranidhran1206-a11y/aradhya-cli#readme">Read the full guide</a></p>
         </div>
       </div>
     </section>
@@ -357,18 +357,18 @@
 
   <footer>
     <span class="who"><img src="assets/logo.png" alt=""> Aradhya Code, made by Tarani</span>
-    <span><a href="https://github.com/taranidhran1206-a11y/unknown-project">Source on GitHub</a></span>
+    <span><a href="https://github.com/taranidhran1206-a11y/aradhya-cli">Source on GitHub</a></span>
   </footer>
 </div>
 
 <script>
 (() => {
   const CMDS = {
-    win: { text: "irm https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.ps1 | iex",
+    win: { text: "irm https://raw.githubusercontent.com/taranidhran1206-a11y/aradhya-cli/main/docs/install.ps1 | iex",
            prompt: "PS>", note: "Paste into PowerShell or Windows Terminal. Python is installed for you if it's missing." },
-    nix: { text: "curl -fsSL https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.sh | sh",
+    nix: { text: "curl -fsSL https://raw.githubusercontent.com/taranidhran1206-a11y/aradhya-cli/main/docs/install.sh | sh",
            prompt: "$", note: "Needs Python 3.9 or newer. On Ubuntu or Debian you may need python3-venv first." },
-    termux: { text: "curl -fsSL https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.sh | sh",
+    termux: { text: "curl -fsSL https://raw.githubusercontent.com/taranidhran1206-a11y/aradhya-cli/main/docs/install.sh | sh",
               prompt: "$", note: "Run inside Termux. It installs Python with pkg if you don't have it yet." },
   };
   const cmd = document.getElementById("cmd"), note = document.getElementById("where-note"), copy = document.getElementById("copy");

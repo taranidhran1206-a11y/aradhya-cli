@@ -3,7 +3,7 @@
 <h1 align="center">Aradhya Code</h1>
 
 <p align="center"><b>Aradhya, a coding agent in your terminal.</b><br>
-<a href="https://taranidhran1206-a11y.github.io/unknown-project/">Website</a> · <a href="#install">Install</a> · <a href="#commands">Commands</a></p>
+<a href="https://taranidhran1206-a11y.github.io/aradhya-cli/">Website</a> · <a href="#install">Install</a> · <a href="#commands">Commands</a></p>
 
 
 Aradhya as a coding agent in your terminal. You tell her what you want in plain words. She reads your project, edits files (showing you the change first), runs commands and tests, keeps a to-do list while she works, and remembers each project's notes. It works on Windows, Linux, macOS, your EC2 server and Termux on Android.
@@ -34,13 +34,13 @@ Aradhya as a coding agent in your terminal. You tell her what you want in plain 
 **Windows** (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.ps1 | iex
+irm https://raw.githubusercontent.com/taranidhran1206-a11y/aradhya-cli/main/docs/install.ps1 | iex
 ```
 
 **macOS, Linux and Termux**:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/taranidhran1206-a11y/aradhya-cli/main/docs/install.sh | sh
 ```
 
 That's it. The installer:
@@ -52,13 +52,13 @@ That's it. The installer:
 Run the same command again to **update**. To **uninstall**, run it with `ARA_UNINSTALL=1`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.sh | ARA_UNINSTALL=1 sh
+curl -fsSL https://raw.githubusercontent.com/taranidhran1206-a11y/aradhya-cli/main/docs/install.sh | ARA_UNINSTALL=1 sh
 ```
 ```powershell
-$env:ARA_UNINSTALL=1; irm https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.ps1 | iex
+$env:ARA_UNINSTALL=1; irm https://raw.githubusercontent.com/taranidhran1206-a11y/aradhya-cli/main/docs/install.ps1 | iex
 ```
 
-**With pip instead** (any OS): `pip install "aradhya-code[full] @ https://github.com/taranidhran1206-a11y/unknown-project/archive/refs/heads/main.zip"`. On Termux leave out `[full]`: the Gemini SDK can't build on Android, and Aradhya Code talks to Gemini directly without it.
+**With pip instead** (any OS): `pip install "aradhya-code[full] @ https://github.com/taranidhran1206-a11y/aradhya-cli/archive/refs/heads/main.zip"`. On Termux leave out `[full]`: the Gemini SDK can't build on Android, and Aradhya Code talks to Gemini directly without it.
 
 ## Setting her up
 
