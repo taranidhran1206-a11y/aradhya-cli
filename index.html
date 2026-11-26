@@ -241,6 +241,9 @@
           <div><dt>ara "fix the test"</dt><dd>Start with a request</dd></div>
           <div><dt>ara -c</dt><dd>Continue your last session here</dd></div>
           <div><dt>ara -p "…"</dt><dd>Answer once and exit, for scripts</dd></div>
+          <div><dt>ara model</dt><dd>Switch her brain or model; <code>/model</code> does it mid-session</dd></div>
+          <div><dt>ara login</dt><dd>Sign in with Google or OpenRouter, or save a key</dd></div>
+          <div><dt>ara doctor</dt><dd>Check everything works, with a fix for anything that doesn't</dd></div>
           <div><dt>/init</dt><dd>She explores the project and writes ARADHYA.md, her notes for next time</dd></div>
           <div><dt>/resume</dt><dd>Pick up an earlier session</dd></div>
           <div><dt>/leo</dt><dd>Switch to Leo: shorter, sharper, colder</dd></div>
@@ -271,9 +274,9 @@
         </div>
         <div class="more">
           <h2>Her brain</h2>
-          <p>She thinks with Google Gemini by default; the installer asks for a free key from <a href="https://aistudio.google.com/apikey">Google AI Studio</a> once. Any OpenAI-compatible model works too: Hermes, OpenRouter or a local model through Ollama.</p>
-<div class="snip">ara --provider ollama --model qwen2.5-coder</div>
-          <p>Run the install command again to update. To remove her, run it with <code>ARA_UNINSTALL=1</code>; your sessions and key stay in <code>~/.aradhya</code> until you delete that folder.</p>
+          <p>The first time you run her, she sets herself up: your name, which brain she thinks with, signing in, the model, and a quick hello to prove it works. Sign in with Google or OpenRouter in your browser, paste a key for OpenAI, Anthropic, Gemini, Nous Portal, Groq, DeepSeek, xAI or Mistral, or point her at Ollama, LM Studio or your own Hermes Agent.</p>
+<div class="snip">ara model</div>
+          <p>Run the install command again to update. To remove her, run it with <code>ARA_UNINSTALL=1</code>; your sessions, settings and sign-ins stay in <code>~/.aradhya</code> until you delete that folder.</p>
           <p><a href="https://github.com/taranidhran1206-a11y/unknown-project#readme">Read the full guide</a></p>
         </div>
       </div>

@@ -7,7 +7,7 @@
 #
 # Options (set before running):
 #   $env:ARA_MINIMAL=1    skip the Gemini SDK and Pillow
-#   $env:ARA_NO_KEY=1     don't ask for a Gemini key
+#   $env:ARA_NO_SETUP=1   don't start setup at the end (run `ara setup` later)
 #   $env:ARA_SOURCE=...   install from another URL or a local folder
 #   $env:ARA_UNINSTALL=1  remove Aradhya Code (keeps your sessions and key in %USERPROFILE%\.aradhya)
 
@@ -120,20 +120,16 @@ if (-not $OnPath) {
 }
 if (-not (($env:Path -split ";") -contains $BinDir)) { $env:Path = "$BinDir;$env:Path" }
 
-# -- Gemini key --------------------------------------------
+# -- Setup: her brain, sign-in, model ----------------------
+# `ara setup` asks your name, lets you pick a brain (Google sign-in, OpenRouter, OpenAI, Anthropic, Ollama...),
+# signs you in or takes a key, picks a model and checks she answers. Skipped if she's already set up.
 $EnvFile = Join-Path $HomeDir ".env"
 $HasKey = $env:GEMINI_API_KEY -or ((Test-Path $EnvFile) -and (Select-String -Path $EnvFile -Pattern "^GEMINI_API_KEY=." -Quiet))
-if (-not $env:ARA_NO_KEY -and -not $HasKey) {
+$SetUp = Test-Path (Join-Path $HomeDir "config.json")
+if (-not $env:ARA_NO_SETUP -and -not $env:ARA_NO_KEY -and -not $HasKey -and -not $SetUp) {
     Say ""
-    Say "  She thinks with Google Gemini. Get a free key at $Esc[38;2;75;163;245mhttps://aistudio.google.com/apikey$Esc[0m"
-    $secure = Read-Host "  Paste your Gemini key (or press Enter to do it later)" -AsSecureString
-    $key = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
-    if ($key) {
-        [IO.File]::AppendAllText($EnvFile, "GEMINI_API_KEY=$($key.Trim())`n", (New-Object Text.UTF8Encoding($false)))
-        Step "Saved your key to $EnvFile"
-    } else {
-        Say "  $Esc[2mLater: add GEMINI_API_KEY=your-key to $EnvFile$Esc[0m"
-    }
+    & $AraExe setup
+    if ($LASTEXITCODE -ne 0) { Say "  $Esc[2mYou can finish this later with: ara setup$Esc[0m" }
 }
 
 Say ""

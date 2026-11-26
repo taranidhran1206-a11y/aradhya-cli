@@ -8,7 +8,7 @@
 #
 # Options (environment variables):
 #   ARA_MINIMAL=1   skip the Gemini SDK and Pillow (automatic on Termux)
-#   ARA_NO_KEY=1    don't ask for a Gemini key
+#   ARA_NO_SETUP=1  don't start setup at the end (run `ara setup` later)
 #   ARA_SOURCE=...  install from another URL or a local folder
 #   ARA_UNINSTALL=1 remove Aradhya Code (keeps your sessions and key in ~/.aradhya)
 set -eu
@@ -109,22 +109,16 @@ ln -sf "$VENV/bin/ara" "$BIN_DIR/ara"
 VERSION="$("$VENV/bin/ara" --version 2>/dev/null || echo "Aradhya Code")"
 step "Installed ${B}$VERSION${R} → $BIN_DIR/ara"
 
-# ── Gemini key ────────────────────────────────────────────
-ENV_FILE="$HOME_DIR/.env"
-if [ -z "${ARA_NO_KEY:-}" ] && ! grep -qs '^GEMINI_API_KEY=.' "$ENV_FILE" && [ -z "${GEMINI_API_KEY:-}" ]; then
+# ── Setup: her brain, sign-in, model ──────────────────────
+# `ara setup` asks your name, lets you pick a brain (Google sign-in, OpenRouter, OpenAI, Anthropic, Ollama…),
+# signs you in or takes a key, picks a model and checks she answers. Skipped if she's already set up.
+if [ -z "${ARA_NO_SETUP:-}${ARA_NO_KEY:-}" ] && [ ! -f "$HOME_DIR/config.json" ] \
+   && ! grep -qs '^GEMINI_API_KEY=.' "$HOME_DIR/.env" && [ -z "${GEMINI_API_KEY:-}" ]; then
   if [ -r /dev/tty ] && (exec </dev/tty) 2>/dev/null; then
     say ""
-    say "  She thinks with Google Gemini. Get a free key at ${BLUE}https://aistudio.google.com/apikey${R}"
-    printf "  Paste your Gemini key (or press Enter to do it later): "
-    KEY=""
-    read -r KEY </dev/tty || KEY=""
-    if [ -n "$KEY" ]; then
-      umask 077
-      printf 'GEMINI_API_KEY=%s\n' "$KEY" >> "$ENV_FILE"
-      step "Saved your key to $ENV_FILE"
-    else
-      say "  ${DIM}Later: add GEMINI_API_KEY=your-key to $ENV_FILE${R}"
-    fi
+    "$VENV/bin/ara" setup </dev/tty >/dev/tty 2>&1 || say "  ${DIM}You can finish this later with: ara setup${R}"
+  else
+    say "  ${DIM}Next: run ${R}${B}ara setup${R}${DIM} to pick her brain.${R}"
   fi
 fi
 
