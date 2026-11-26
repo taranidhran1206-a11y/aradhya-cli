@@ -33,18 +33,32 @@ def _new_id():
 class GeminiProvider:
     name = "gemini"
 
-    def __init__(self, model=None, api_key=None):
-        self.api_key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-        if not self.api_key:
-            raise ProviderError("No Gemini key. Add GEMINI_API_KEY=your-key to ~/.aradhya/.env (free key: https://aistudio.google.com/apikey)")
+    def __init__(self, model=None, api_key=None, cred=None, name="gemini"):
+        self.name = name
+        if cred is None:
+            key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+            cred = {"key": key} if key else None
+        if not cred:
+            raise ProviderError("No Gemini key or Google sign-in yet. Run: ara setup")
+        self.cred = cred
+        self.api_key = cred.get("key")
         self.model = model or os.environ.get("ARA_MODEL") or GEMINI_FALLBACKS[0]
+        self._client = None
+        if self.api_key:  # a Google sign-in always goes over plain HTTPS
+            try:
+                from google import genai
+                from google.genai import types
+                self._client = genai.Client(api_key=self.api_key,
+                                            http_options=types.HttpOptions(api_version="v1beta"))
+            except ImportError:  # e.g. Termux, where google-genai's pydantic won't build: talk to the API directly
+                self._client = None
+
+    def _headers(self):
+        from .engines import gemini_headers
         try:
-            from google import genai
-            from google.genai import types
-            self._client = genai.Client(api_key=self.api_key,
-                                        http_options=types.HttpOptions(api_version="v1beta"))
-        except ImportError:  # e.g. Termux, where google-genai's pydantic won't build: talk to the API directly
-            self._client = None
+            return gemini_headers(self.cred)
+        except Exception as e:  # e.g. the Google sign-in expired
+            raise ProviderError(str(e))
 
     def _contents(self, history):
         from google.genai import types
@@ -183,9 +197,8 @@ class GeminiProvider:
         for attempt in range(3):
             busy = []
             for model in order:
-                url = (f"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent"
-                       f"?alt=sse&key={self.api_key}")
-                req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?alt=sse"
+                req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json", **self._headers()})
                 started = False
                 try:
                     with urllib.request.urlopen(req, timeout=120) as resp:
@@ -216,7 +229,9 @@ class GeminiProvider:
                     msg = f"{e.code} {e.read().decode('utf-8', 'replace')[:200]}"
                     errors.append(f"{model}: {msg}")
                     if e.code in (400, 401, 403):
-                        raise ProviderError("Gemini refused the request.\n" + errors[-1])
+                        hint = ("\nYour Google account may not be allowed to use this sign-in yet, or the sign-in expired. "
+                                "Run: ara login google") if "oauth" in self.cred and e.code in (401, 403) else ""
+                        raise ProviderError("Gemini refused the request.\n" + errors[-1] + hint)
                     if e.code in (429, 500, 503, 504):
                         busy.append(model)
                 except Exception as e:  # noqa: BLE001
@@ -237,7 +252,8 @@ class GeminiProvider:
 class OpenAIProvider:
     name = "openai"
 
-    def __init__(self, model=None, base_url=None, api_key=None):
+    def __init__(self, model=None, base_url=None, api_key=None, name="openai"):
+        self.name = name
         self.base = (base_url or os.environ.get("ARA_BASE_URL") or "http://localhost:8642/v1").rstrip("/")
         self.key = api_key or os.environ.get("ARA_API_KEY") or os.environ.get("OPENAI_API_KEY") or "none"
         self.model = model or os.environ.get("ARA_MODEL") or "default"
@@ -262,15 +278,21 @@ class OpenAIProvider:
         body = {
             "model": self.model, "stream": True, "temperature": temperature,
             "messages": self._messages(history, system),
-            "tools": [{"type": "function", "function": t} for t in tools],
         }
-        req = urllib.request.Request(self.base + "/chat/completions", data=json.dumps(body).encode(),
-                                     headers={"Content-Type": "application/json",
-                                              "Authorization": "Bearer " + self.key})
+        if tools:
+            body["tools"] = [{"type": "function", "function": t} for t in tools]
+        if "anthropic.com" in self.base:  # Anthropic wants a reply length
+            body["max_tokens"] = 16000
+        headers = {"Content-Type": "application/json", "Authorization": "Bearer " + self.key}
+        if "openrouter.ai" in self.base:  # shows up as "Aradhya Code" in your OpenRouter activity
+            headers.update({"HTTP-Referer": "https://taranidhran1206-a11y.github.io/unknown-project/",
+                            "X-Title": "Aradhya Code"})
+        req = urllib.request.Request(self.base + "/chat/completions", data=json.dumps(body).encode(), headers=headers)
         try:
             resp = urllib.request.urlopen(req, timeout=180)
         except Exception as e:
-            raise ProviderError(f"{self.base} didn't answer: {e}")
+            from .engines import friendly_error
+            raise ProviderError(f"{self.name} ({self.model}): {friendly_error(e)}")
         calls = {}
         with resp:
             for raw in resp:
@@ -337,15 +359,28 @@ class ScriptedProvider:
 
 
 def make_provider(kind=None, model=None, base_url=None):
-    kind = kind or os.environ.get("ARA_PROVIDER") or ("openai" if base_url or os.environ.get("ARA_BASE_URL") else "gemini")
-    if kind == "gemini":
-        return GeminiProvider(model=model)
-    if kind == "scripted":  # for demos and UI tests: ARA_SCRIPT=turns.json
+    """Build the provider from flags, environment and ~/.aradhya/config.json. ProviderError("NOT_SET_UP")
+    means nothing has been chosen yet (onboarding should run)."""
+    from . import engines
+    if (kind or os.environ.get("ARA_PROVIDER")) == "scripted":  # for demos and UI tests: ARA_SCRIPT=turns.json
         return ScriptedProvider(json.load(open(os.environ["ARA_SCRIPT"], encoding="utf-8")))
-    if kind in ("openai", "hermes", "openrouter", "ollama"):
-        if kind == "openrouter" and not base_url:
-            base_url = "https://openrouter.ai/api/v1"
-        if kind == "ollama" and not base_url:
-            base_url = "http://localhost:11434/v1"
-        return OpenAIProvider(model=model, base_url=base_url)
-    raise ProviderError(f"Unknown provider '{kind}'. Use gemini, openai, hermes, openrouter or ollama.")
+    try:
+        engine, model, base_url = engines.resolve(kind, model, base_url)
+    except ValueError as e:
+        raise ProviderError(str(e))
+    if engine is None:
+        raise ProviderError("NOT_SET_UP")
+    return provider_for(engine, model, base_url)
+
+
+def provider_for(engine, model, base_url=None, cred=None):
+    from . import engines
+    cred = cred if cred is not None else engines.credential(engine)
+    if engine.kind == "gemini":
+        if not cred:
+            raise ProviderError(f"{engine.name} isn't connected yet. Run: ara login {engine.id}")
+        return GeminiProvider(model=model, cred=cred, name=engine.id)
+    if not cred:
+        raise ProviderError(f"No {engine.name} key yet. Run: ara login {engine.id}")
+    return OpenAIProvider(model=model, base_url=base_url or engine.base, api_key=cred.get("key") or "none",
+                          name=engine.id)

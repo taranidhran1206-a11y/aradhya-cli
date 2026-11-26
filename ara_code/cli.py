@@ -1,9 +1,15 @@
 """Aradhya Code: Aradhya as a coding agent in your terminal.
 
-  ara                      start a session in this folder
+  ara                      start a session in this folder (sets her up the first time)
   ara "fix the failing test"   start with a request
   ara -p "explain this repo"   answer once and exit (for scripts)
   ara -c                   continue the last session in this folder
+  ara setup                set her up again: your name, brain, model, how careful she is
+  ara model                switch brain or model
+  ara login [engine]       sign in (Google, OpenRouter) or save a key
+  ara logout [engine]      remove a saved key or sign-in
+  ara auth                 what she's connected to
+  ara doctor               check everything works
 """
 import argparse
 import json
@@ -13,13 +19,13 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from . import __version__
+from . import __version__, engines
 from .agent import Agent
 from .providers import ProviderError, make_provider
 from .tools import ToolBox
 from .ui import TerminalUI, GOLD, BLUE, MUTED, RED, FAINT
 
-HOME = Path(os.environ.get("ARA_HOME", Path.home() / ".aradhya"))
+HOME = engines.HOME
 SESSIONS = HOME / "sessions"
 MODES = ["default", "accept-edits", "yolo"]
 
@@ -29,7 +35,7 @@ HELP = """[bold]Commands[/bold]
   /compact           summarize the conversation to free up context
   /init              write an ARADHYA.md describing this project (her project memory)
   /mode [name]       default (asks first) · accept-edits · yolo (never asks)
-  /model [name]      show or switch the model
+  /model [name]      switch the model, or pick another brain
   /leo, /aradhya     switch persona
   /resume            pick an earlier session from this folder
   /todos             show the task list
@@ -295,16 +301,54 @@ def setup_console():
             pass
 
 
+SUBCOMMANDS = ("setup", "model", "login", "logout", "auth", "doctor")
+
+
+def run_subcommand(argv):
+    from . import onboarding
+    ui = TerminalUI(interactive=True)
+    cmd, rest = argv[0], argv[1:]
+    if cmd == "setup":
+        return 0 if onboarding.setup(ui, first_run=not engines.CONFIG.exists()) else 1
+    if cmd == "model":
+        return 0 if onboarding.switch(ui) else 1
+    if cmd == "login":
+        client = None
+        if "--client" in rest:
+            i = rest.index("--client")
+            client = rest[i + 1] if i + 1 < len(rest) else None
+            rest = rest[:i] + rest[i + 2:]
+            if not client:
+                ui.error("Give the path: ara login google --client client_secret.json")
+                return 1
+        return onboarding.do_login(ui, rest[0] if rest else None, client)
+    if cmd == "logout":
+        return onboarding.do_logout(ui, rest[0] if rest else None)
+    if cmd == "auth":
+        return onboarding.auth_status(ui)
+    if cmd == "doctor":
+        return onboarding.doctor(ui)
+    return 1
+
+
 def main(argv=None):
     setup_console()
     load_env()
-    ap = argparse.ArgumentParser(prog="ara", description="Aradhya Code: Aradhya as a coding agent in your terminal.")
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] in SUBCOMMANDS and not any(a.startswith("-") and a not in ("--client",) for a in argv[1:2]):
+        try:
+            return run_subcommand(argv)
+        except KeyboardInterrupt:
+            return 130
+    ap = argparse.ArgumentParser(prog="ara", description="Aradhya Code: Aradhya as a coding agent in your terminal.",
+                                 epilog="More: ara setup · ara model · ara login · ara logout · ara auth · ara doctor")
     ap.add_argument("prompt", nargs="*", help="what you want done")
     ap.add_argument("-p", "--print", action="store_true", help="answer once, print, exit")
     ap.add_argument("-c", "--continue", dest="cont", action="store_true", help="continue the last session here")
     ap.add_argument("-r", "--resume", action="store_true", help="pick a session to resume")
     ap.add_argument("--model", help="model name (default gemini-flash-latest)")
-    ap.add_argument("--provider", help="gemini (default) | hermes | openai | openrouter | ollama")
+    ap.add_argument("--provider", help="google | gemini | openrouter | openai | anthropic | nous | groq | deepseek | "
+                                       "xai | mistral | ollama | lmstudio | hermes | custom")
     ap.add_argument("--base-url", help="OpenAI-compatible endpoint, e.g. http://localhost:8642/v1 for Hermes")
     ap.add_argument("--accept-edits", action="store_true", help="don't ask before editing files")
     ap.add_argument("--yolo", action="store_true", help="never ask (careful)")
@@ -315,7 +359,9 @@ def main(argv=None):
 
     cwd = Path(args.cwd or os.getcwd()).resolve()
     persona = "leo" if args.leo else "aradhya"
-    mode = "yolo" if args.yolo else "accept-edits" if args.accept_edits else "default"
+    saved_mode = engines.load_config().get("mode")
+    mode = ("yolo" if args.yolo else "accept-edits" if args.accept_edits
+            else saved_mode if saved_mode in MODES else "default")
     prompt = " ".join(args.prompt).strip()
     if not sys.stdin.isatty() and not prompt:
         prompt = sys.stdin.read().strip()
@@ -324,8 +370,23 @@ def main(argv=None):
     try:
         provider = make_provider(args.provider, args.model, args.base_url)
     except ProviderError as e:
-        ui.error(str(e))
-        return 1
+        if str(e) != "NOT_SET_UP":
+            ui.error(str(e))
+            return 1
+        if not ui.interactive:
+            ui.error("She isn't set up yet. Run: ara setup")
+            return 1
+        from . import onboarding
+        if not onboarding.setup(ui, first_run=True):
+            return 1
+        saved = engines.load_config().get("mode")
+        if not (args.yolo or args.accept_edits) and saved in MODES:
+            mode = saved
+        try:
+            provider = make_provider(args.provider, args.model, args.base_url)
+        except ProviderError as e2:
+            ui.error(str(e2))
+            return 1
     except ImportError:
         ui.error("Missing package. Run: pip install rich prompt_toolkit")
         return 1
@@ -459,7 +520,28 @@ def slash(text, ui, agent, toolbox, cwd):
     elif cmd == "model":
         if arg:
             agent.provider.model = arg
-        c.print(f"[{MUTED}]  Model: [/][bold]{agent.provider.model}[/] [{MUTED}]({agent.provider.name})[/]\n")
+            c.print(f"[{MUTED}]  Model: [/][bold]{agent.provider.model}[/] [{MUTED}]({agent.provider.name})[/]\n")
+            return None
+        from . import onboarding
+        engine = engines.get(agent.provider.name)
+        if engine is None:
+            c.print(f"[{MUTED}]  Model: [/][bold]{agent.provider.model}[/] [{MUTED}]({agent.provider.name})[/]\n")
+            return None
+        base = getattr(agent.provider, "base", None)
+        res = onboarding.pick_model(ui, engine, base, agent.provider.model)
+        if not res:
+            c.print(f"[{MUTED}]  Still on [/][bold]{agent.provider.model}[/]\n")
+        elif res[0] == "model":
+            agent.provider.model = res[1]
+            c.print()
+        else:
+            new_engine, model, url = res[1]
+            try:
+                from .providers import provider_for
+                agent.provider = provider_for(new_engine, model, url)
+                c.print(f"[{MUTED}]  Now thinking with [/][bold]{new_engine.name} · {model}[/]\n")
+            except ProviderError as e:
+                ui.error(str(e))
     elif cmd in ("leo", "aradhya"):
         agent.persona = ui.persona = cmd
         c.print(f"[{RED}]  🔴 Leo online.[/]\n" if cmd == "leo" else f"[{GOLD}]  💫 Hey kanna, I'm back ✨[/]\n")

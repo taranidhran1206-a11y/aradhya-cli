@@ -207,6 +207,21 @@ class EscWatcher:
 
 # ─────────────────────────── main UI ───────────────────────────
 
+def _saved_name():
+    try:
+        from .engines import load_config
+        name = load_config().get("name")
+    except Exception:
+        name = None
+    if name:
+        return name
+    try:
+        import getpass
+        return getpass.getuser().split("\\")[-1].capitalize() or "friend"
+    except Exception:
+        return "friend"
+
+
 class TerminalUI:
     def __init__(self, interactive=True, persona="aradhya"):
         self.console = Console(highlight=False, theme=THEME)
@@ -216,7 +231,7 @@ class TerminalUI:
         self._think = None
         self._tool = None
         self.esc = EscWatcher()
-        self.name = os.environ.get("ARA_NAME", "Tarani")
+        self.name = os.environ.get("ARA_NAME") or _saved_name()
 
     @property
     def accent(self):
@@ -230,24 +245,13 @@ class TerminalUI:
         greet = (Text("Leo online. Orders?", style=f"bold {RED}") if self.persona == "leo"
                  else Text(f"Welcome back, {self.name}!", style="bold"))
         info = Text(f"{model} · {who}\n{short_path(cwd)}", style=MUTED, justify="center")
-        rich_color = self.console.color_system in ("truecolor", "256")
         if w >= 104:
             size, two = 24, True
         elif w >= 84:
             size, two = 20, True
         else:
             size, two = (16 if w >= 30 else 0), False
-        if not rich_color:  # 16-colour or no-colour terminal: the picture would be mush, use a wordmark
-            size = 0
-        from . import logo_img
-        kind = logo_img.detect() if rich_color else "blocks"
-        image = logo_img.render(kind, size, size // 2) if size and kind not in ("blocks", "off") else ""
-        if image:  # reserve the spot (blank braille cells), the real picture is drawn over it after printing
-            art = [Text(HOLD * size) for _ in range(size // 2)]
-        elif kind == "off":
-            art = []
-        else:
-            art = logo_text(size) if size else [Text("✦  A R A D H Y A  ✦", style=f"bold {self.accent}")]
+        art, image = self._logo(size)
         if two:
             lw = max(size + 8, 32)
             left = Table.grid()
@@ -275,6 +279,26 @@ class TerminalUI:
             body.add_row("")
             body.add_row(info)
         panel = Panel(body, title=title, title_align="left", border_style=self.accent, box=box.ROUNDED, padding=(1, 1))
+        self._print_with_logo(panel, art, image)
+        if mode != "default":
+            self.console.print(Text(f"  ▸▸ {mode_label(mode)}", style=mode_color(mode)))
+        self.console.print()
+
+    def _logo(self, size):
+        """Her logo as rows of text, plus the picture escape code to draw over them (or "")."""
+        rich_color = self.console.color_system in ("truecolor", "256")
+        if not rich_color:  # 16-colour or no-colour terminal: the picture would be mush, use a wordmark
+            size = 0
+        from . import logo_img
+        kind = logo_img.detect() if rich_color else "blocks"
+        image = logo_img.render(kind, size, size // 2) if size and kind not in ("blocks", "off") else ""
+        if image:  # reserve the spot (blank braille cells), the real picture is drawn over it after printing
+            return [Text(HOLD * size) for _ in range(size // 2)], image
+        if kind == "off":
+            return [], ""
+        return (logo_text(size) if size else [Text("✦  A R A D H Y A  ✦", style=f"bold {self.accent}")]), ""
+
+    def _print_with_logo(self, panel, art, image):
         if image:
             spot = self._find_spot(panel)
             for t in art:  # print plain spaces: marker glyphs would show through her transparent parts
@@ -286,9 +310,28 @@ class TerminalUI:
                 self.console.file.flush()
         else:
             self.console.print(panel)
-        if mode != "default":
-            self.console.print(Text(f"  ▸▸ {mode_label(mode)}", style=mode_color(mode)))
-        self.console.print()
+
+    def setup_card(self, heading, lines, title="setup"):
+        """The card at the top of setup: her logo on the left, a few lines from her on the right."""
+        w = self.console.width
+        size = 16 if w >= 70 else 12 if w >= 50 else 0
+        head = Text.assemble((" ✦ ", self.accent), ("Aradhya Code", f"bold {self.accent}"), (f" · {title} ", MUTED))
+        words = [Text(heading, style="bold"), Text("")] + [Text(l, style=MUTED) if isinstance(l, str) else l
+                                                           for l in lines]
+        if size:
+            art, image = self._logo(size)
+            grid = Table.grid(padding=(0, 3))
+            grid.add_column(width=size)
+            grid.add_column(ratio=1)
+            pad = max(0, (len(art) - len(words)) // 2)
+            right = Group(*([Text("")] * pad + words))
+            grid.add_row(Group(*art), right)
+            panel = Panel(grid, title=head, title_align="left", border_style=self.accent, box=box.ROUNDED,
+                          padding=(1, 2))
+            self._print_with_logo(panel, art, image)
+        else:
+            self.console.print(Panel(Group(*words), title=head, title_align="left", border_style=self.accent,
+                                     box=box.ROUNDED, padding=(1, 2)))
 
     def _find_spot(self, panel):
         """Where the reserved cells are: (lines up from the end of the card, column)."""
