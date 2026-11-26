@@ -1,7 +1,7 @@
 #!/bin/sh
 # Aradhya Code installer for Linux, macOS and Termux (Android).
 #
-#   curl -fsSL https://raw.githubusercontent.com/taranidhran1206-a11y/unknown-project/main/docs/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/taranidhran1206-a11y/aradhya-cli/main/docs/install.sh | sh
 #
 # Installs into its own folder (~/.aradhya/venv), so it never touches your system Python,
 # and puts the `ara` command on your PATH. Run it again any time to update.
@@ -13,7 +13,7 @@
 #   ARA_UNINSTALL=1 remove Aradhya Code (keeps your sessions and key in ~/.aradhya)
 set -eu
 
-REPO_ZIP="https://github.com/taranidhran1206-a11y/unknown-project/archive/refs/heads/main.zip"
+REPO_ZIP="https://github.com/taranidhran1206-a11y/aradhya-cli/archive/refs/heads/main.zip"
 SOURCE="${ARA_SOURCE:-$REPO_ZIP}"
 HOME_DIR="${ARA_HOME:-$HOME/.aradhya}"
 VENV="$HOME_DIR/venv"
